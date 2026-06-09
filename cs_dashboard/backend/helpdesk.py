@@ -49,6 +49,8 @@ class HelpdeskClient:
             "category_sub": parts[-1] if len(parts) > 1 else parts[0] if parts else None,
             "category_full": full_name,
             "call_memo": call_memo,
+            "student_id": raw.get("student"),
+            "parent_id": raw.get("parent"),
         }
 
     async def fetch_issues(self, target_date: date) -> list[dict]:

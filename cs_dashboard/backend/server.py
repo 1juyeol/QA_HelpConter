@@ -6,8 +6,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import get_conn, init_db
-from scheduler import start_scheduler, collect_today, prompt_credentials
+from scheduler import start_scheduler, collect_today, prompt_credentials, _get_client
 from reclassify import run as reclassify_run
+
+HELPDESK_ISSUES_URL = "https://help-desk-api.wink.co.kr/issue/issues/"
 
 app = FastAPI()
 
@@ -125,6 +127,7 @@ def list_issues(
     period: str = "day",
     start_date: str = Query(default=None),
     end_date: str = Query(default=None),
+    unclassified: bool = False,
     limit: int = 200,
     offset: int = 0,
 ):
@@ -135,18 +138,21 @@ def list_issues(
         if not target_date:
             target_date = str(date.today())
         where, params = _period_where(target_date, period)
-    if category_main:
+    if unclassified:
+        where += " AND new_category_main IS NULL"
+    elif category_main:
         where += " AND new_category_main = ?"
         params.append(category_main)
-    if category_sub:
-        where += " AND new_category_sub = ?"
-        params.append(category_sub)
+        if category_sub:
+            where += " AND new_category_sub = ?"
+            params.append(category_sub)
     with get_conn() as conn:
         total = conn.execute(f"SELECT COUNT(*) FROM issues WHERE {where}", params).fetchone()[0]
         rows = conn.execute(
             f"""
             SELECT id, datetime(created_date, '+9 hours') AS created_date,
-                   new_category_main, new_category_sub, call_memo
+                   new_category_main, new_category_sub, call_memo,
+                   student_id, parent_id
             FROM issues WHERE {where}
             ORDER BY created_date DESC LIMIT ? OFFSET ?
             """,
@@ -198,6 +204,61 @@ def stats_monthly():
 def admin_reclassify():
     reclassify_run()
     return {"status": "ok"}
+
+
+# ── 학생/학부모 번호 backfill ────────────────────────────────
+@app.post("/api/admin/backfill_ids")
+async def admin_backfill_ids():
+    asyncio.create_task(_backfill_ids())
+    return {"status": "started"}
+
+
+async def _backfill_ids():
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT date(created_date) AS d FROM issues "
+            "WHERE student_id IS NULL ORDER BY d"
+        ).fetchall()
+    dates = [r["d"] for r in rows]
+    if not dates:
+        print("[backfill] 보완할 데이터 없음")
+        return
+
+    print(f"[backfill] 대상 {len(dates)}일 ({dates[0]} ~ {dates[-1]})")
+    client = None
+    try:
+        client = await _get_client()
+        for d_str in dates:
+            offset = 0
+            total = 0
+            while True:
+                resp = await client.client.get(
+                    HELPDESK_ISSUES_URL,
+                    params={
+                        "model_type": 1009, "is_complete": "true",
+                        "limit": 100, "offset": offset,
+                        "created_date": f"{d_str},{d_str}",
+                        "search": "", "order_by": "-dpo,-id",
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                updates = [(r.get("student"), r.get("parent"), r["id"]) for r in data.get("results", [])]
+                with get_conn() as conn:
+                    conn.executemany(
+                        "UPDATE issues SET student_id=?, parent_id=? WHERE id=?", updates
+                    )
+                    conn.commit()
+                total += len(updates)
+                if not data.get("next"):
+                    break
+                offset += 100
+                await asyncio.sleep(5)
+            print(f"[backfill] {d_str} 완료 — {total}건")
+    finally:
+        if client:
+            await client.close()
+    print("[backfill] 전체 완료")
 
 
 # ── 마지막 수집 시각 ──────────────────────────────────────────

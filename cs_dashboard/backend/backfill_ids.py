@@ -1,0 +1,86 @@
+"""student_id, parent_id 누락 데이터 일괄 보완."""
+import asyncio
+import getpass
+from datetime import date
+
+from helpdesk import HelpdeskClient
+from db import get_conn
+
+DELAY = 5  # 페이지 호출 간 딜레이(초)
+
+
+async def run():
+    print("help-desk 로그인")
+    username = input("  아이디: ")
+    password = getpass.getpass("  비밀번호: ")
+    print()
+
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT date(created_date) AS d FROM issues "
+            "WHERE student_id IS NULL ORDER BY d"
+        ).fetchall()
+    dates = [r[0] for r in rows]
+
+    if not dates:
+        print("보완할 데이터 없음")
+        return
+
+    print(f"대상 날짜: {len(dates)}일 ({dates[0]} ~ {dates[-1]})")
+
+    client = None
+    try:
+        client = await HelpdeskClient.login(username, password)
+
+        # HelpdeskClient.fetch_issues에 딜레이 적용을 위해 직접 페이지네이션
+        for d_str in dates:
+            target = date.fromisoformat(d_str)
+            offset = 0
+            total_updated = 0
+
+            while True:
+                resp = await client.client.get(
+                    "https://help-desk-api.wink.co.kr/issue/issues/",
+                    params={
+                        "model_type": 1009,
+                        "is_complete": "true",
+                        "limit": 100,
+                        "offset": offset,
+                        "created_date": f"{d_str},{d_str}",
+                        "search": "",
+                        "order_by": "-dpo,-id",
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                results = data.get("results", [])
+
+                updates = [
+                    (r.get("student"), r.get("parent"), r["id"])
+                    for r in results
+                ]
+                with get_conn() as conn:
+                    conn.executemany(
+                        "UPDATE issues SET student_id=?, parent_id=? WHERE id=?",
+                        updates,
+                    )
+                    conn.commit()
+                total_updated += len(updates)
+
+                if not data.get("next"):
+                    break
+                offset += 100
+                print(f"  [{d_str}] {offset}건 처리 중... ({DELAY}초 대기)")
+                await asyncio.sleep(DELAY)
+
+            print(f"[{d_str}] 완료 — {total_updated}건 업데이트")
+
+    finally:
+        if client:
+            await client.close()
+
+    print("\n완료")
+
+
+if __name__ == "__main__":
+    asyncio.run(run())
