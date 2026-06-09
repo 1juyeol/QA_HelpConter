@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #1e293b; }
+
+  header {
+    background: linear-gradient(135deg, #1e40af 0%, #1a56db 100%);
+    color: #fff;
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(26,86,219,.25);
+  }
+  .header-left h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+  .header-left p  { font-size: 12px; opacity: .7; margin-top: 3px; }
+  #last-collected {
+    font-size: 12px;
+    background: rgba(255,255,255,.15);
+    padding: 5px 14px;
+    border-radius: 20px;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tabs {
+    display: flex;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  }
+  .tabs button {
+    padding: 8px 18px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    border-right: 1px solid #e2e8f0;
+    transition: background .15s, color .15s;
+  }
+  .tabs button:last-child { border-right: none; }
+  .tabs button.active { background: #1a56db; color: #fff; }
+  .tabs button:not(.active):hover { background: #f8fafc; }
+
+  input[type=date] {
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #374151;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  }
+  #refresh-btn {
+    padding: 8px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05);
+    transition: background .15s;
+  }
+  #refresh-btn:hover { background: #f8fafc; }
+
+  /* KPI Cards */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    border-left: 4px solid transparent;
+  }
+  .card.blue  { border-left-color: #1a56db; }
+  .card.green { border-left-color: #10b981; }
+  .card.amber { border-left-color: #f59e0b; }
+  .card .label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
+  .card .value { font-size: 30px; font-weight: 800; color: #0f172a; line-height: 1; }
+  .card .sub   { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+  /* Chart */
+  .chart-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    margin-bottom: 20px;
+  }
+  .chart-card h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+  canvas { max-height: 240px; }
+
+  /* Category / Detail */
+  .section-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.07);
+    margin-bottom: 20px;
+  }
+  .section-card h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+
+  .clickable { cursor: pointer; }
+  .clickable:hover td { background: #f0f7ff; }
+
+  .count-badge {
+    display: inline-block;
+    background: #eff6ff;
+    color: #1a56db;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-weight: 700;
+    font-size: 12px;
+  }
+
+  /* Progress bar */
+  .prog-wrap { display: flex; align-items: center; gap: 8px; }
+  .prog-bar-bg { flex: 1; height: 6px; background: #f1f5f9; border-radius: 99px; overflow: hidden; min-width: 60px; }
+  .prog-bar-fill { height: 100%; border-radius: 99px; background: #93c5fd; transition: width .4s; }
+  .prog-bar-fill.main { background: #1a56db; }
+  .prog-pct { font-size: 12px; color: #94a3b8; width: 38px; text-align: right; flex-shrink: 0; }
+
+  /* Detail panel */
+  #detail-panel { display: none; }
+  .back-btn {
+    background: none;
+    border: none;
+    color: #1a56db;
+    cursor: pointer;
+    font-size: 13px;
+    margin-bottom: 14px;
+    padding: 0;
+    font-weight: 500;
+  }
+  .back-btn:hover { text-decoration: underline; }
+  .detail-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #1e293b; }
+
+  .loading { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
+  .empty   { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>공감센터 CS 대시보드</h1>
+    <p id="header-date"></p>
+  </div>
+  <span id="last-collected">마지막 수집: —</span>
+</header>
+
+<div class="container">
+
+  <!-- 기간 선택 -->
+  <div class="toolbar">
+    <div class="tabs">
+      <button class="active" data-period="hourly_range">시간별</button>
+      <button data-period="day">일별</button>
+      <button data-period="week">주별</button>
+      <button data-period="month">월별</button>
+    </div>
+    <span id="single-date-wrap" style="display:none">
+      <input type="date" id="date-input">
+    </span>
+    <span id="range-date-wrap" style="display:flex;gap:6px;align-items:center;">
+      <input type="date" id="start-date-input">
+      <span style="color:#94a3b8">~</span>
+      <input type="date" id="end-date-input">
+    </span>
+    <button id="refresh-btn">↻ 새로고침</button>
+  </div>
+
+  <!-- KPI 카드 3개 -->
+  <div class="cards">
+    <div class="card blue">
+      <div class="label" id="card-label">상담건수</div>
+      <div class="value" id="card-total">—</div>
+      <div class="sub"   id="card-sub">—</div>
+    </div>
+    <div class="card green">
+      <div class="label">최다 문의 유형</div>
+      <div class="value" id="card-top-cat" style="font-size:18px;line-height:1.4">—</div>
+      <div class="sub"   id="card-top-cnt">—</div>
+    </div>
+    <div class="card amber">
+      <div class="label">분류 항목 수</div>
+      <div class="value" id="card-cat-count">—</div>
+      <div class="sub">대분류 기준</div>
+    </div>
+  </div>
+
+  <!-- 꺾은선 차트 -->
+  <div class="chart-card">
+    <h2 id="chart-title">시간대별 상담 건수</h2>
+    <canvas id="main-chart"></canvas>
+  </div>
+
+  <!-- 카테고리 집계 -->
+  <div id="category-panel" class="section-card">
+    <h2>카테고리별 건수</h2>
+    <div id="category-body"><div class="loading">불러오는 중...</div></div>
+  </div>
+
+  <!-- 상세 드릴다운 -->
+  <div id="detail-panel" class="section-card">
+    <button class="back-btn" id="back-btn">← 카테고리 목록으로</button>
+    <div class="detail-title" id="detail-title"></div>
+    <div id="detail-body"><div class="loading">불러오는 중...</div></div>
+  </div>
+
+</div>
+
+<script>
+// ── 상태 ──────────────────────────────────────────────────────
+let state = {
+  period: 'hourly_range',
+  date: todayStr(),
+  startDate: todayStr(),
+  endDate: todayStr(),
+};
+let chartInstance = null;
+
+// ── 초기화 ────────────────────────────────────────────────────
+document.getElementById('header-date').textContent = new Date().toLocaleDateString('ko-KR', {
+  year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
+});
+document.getElementById('date-input').value = state.date;
+document.getElementById('start-date-input').value = state.startDate;
+document.getElementById('end-date-input').value = state.endDate;
+
+document.querySelectorAll('.tabs button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.period = btn.dataset.period;
+    const isRange = state.period === 'hourly_range';
+    document.getElementById('single-date-wrap').style.display = 'none';
+    document.getElementById('range-date-wrap').style.display = isRange ? 'flex' : 'none';
+    loadAll();
+  });
+});
+
+document.getElementById('date-input').addEventListener('change', e => { state.date = e.target.value; loadAll(); });
+document.getElementById('start-date-input').addEventListener('change', e => { state.startDate = e.target.value; loadAll(); });
+document.getElementById('end-date-input').addEventListener('change', e => { state.endDate = e.target.value; loadAll(); });
+document.getElementById('refresh-btn').addEventListener('click', loadAll);
+document.getElementById('back-btn').addEventListener('click', showCategoryPanel);
+
+loadAll();
+loadLastCollected();
+
+// ── 전체 로드 ─────────────────────────────────────────────────
+async function loadAll() {
+  showCategoryPanel();
+  await Promise.all([loadChart(), loadCategory()]);
+}
+
+// ── 차트 ─────────────────────────────────────────────────────
+async function loadChart() {
+  const { period, date, startDate, endDate } = state;
+  let labels, data, chartLabel;
+
+  if (period === 'hourly_range') {
+    const rows = await api(`/api/stats/hourly_range?start_date=${startDate}&end_date=${endDate}`);
+    labels = rows.map(r => r.hour + '시');
+    data = rows.map(r => r.count);
+    chartLabel = `시간대별 누적 건수 (${startDate} ~ ${endDate})`;
+  } else if (period === 'day') {
+    const today = todayStr();
+    const d = new Date(); d.setDate(d.getDate() - 6);
+    const start = d.toISOString().slice(0, 10);
+    const rows = await api(`/api/stats/daily?target_date=${today}&period=week`);
+    labels = rows.map(r => r.date.slice(5));
+    data = rows.map(r => r.count);
+    chartLabel = `일별 상담 건수 (최근 7일, ${start} ~ ${today})`;
+  } else if (period === 'week') {
+    const rows = await api('/api/stats/weekly');
+    labels = rows.map(r => r.week_start.slice(5) + ' ~');
+    data = rows.map(r => r.count);
+    chartLabel = '주별 상담 건수 (최근 6주)';
+  } else if (period === 'month') {
+    const rows = await api('/api/stats/monthly');
+    labels = rows.map(r => r.month.slice(5) + '월');
+    data = rows.map(r => r.count);
+    chartLabel = '월별 상담 건수 (최근 3개월)';
+  }
+
+  document.getElementById('chart-title').textContent = chartLabel;
+
+  const total = data.reduce((s, v) => s + v, 0);
+  const labelMap = { day: '상담건수 (7일)', week: '상담건수 (6주)', month: '상담건수 (3개월)', hourly_range: '상담건수 (기간)' };
+  const subMap   = { day: '최근 7일 합계', week: '최근 6주 합계', month: '최근 3개월 합계', hourly_range: '기간 합계' };
+  document.getElementById('card-label').textContent = labelMap[period];
+  document.getElementById('card-total').textContent = total.toLocaleString() + '건';
+  document.getElementById('card-sub').textContent = subMap[period];
+
+  const ctx = document.getElementById('main-chart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: '건수',
+        data,
+        borderColor: '#1a56db',
+        backgroundColor: 'rgba(26,86,219,.07)',
+        pointBackgroundColor: '#1a56db',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        tension: 0.35,
+        fill: true,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y.toLocaleString()}건` } },
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: {hourly_range:50, day:200, week:5000, month:5000}[period] ?? 1 }, grid: { color: '#f1f5f9' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+}
+
+// ── 카테고리 집계 ─────────────────────────────────────────────
+async function loadCategory() {
+  const { period, date, startDate, endDate } = state;
+  const { start: catStart, end: catEnd } = getPeriodRange();
+  const url = `/api/stats/category?start_date=${catStart}&end_date=${catEnd}`;
+  const rows = await api(url);
+
+  const grouped = {};
+  let totalAll = 0;
+  rows.forEach(r => {
+    if (!grouped[r.new_category_main]) grouped[r.new_category_main] = { total: 0, subs: [] };
+    grouped[r.new_category_main].total += r.count;
+    grouped[r.new_category_main].subs.push(r);
+    totalAll += r.count;
+  });
+
+  const CATEGORY_ORDER = ['네트워크·앱 오류','기기·하드웨어 오류','미납·결제','해지·유지 상담','체험 관련','교재·물류·배송','계정·서비스','기타'];
+  const sorted = Object.entries(grouped).sort((a, b) => {
+    const ai = CATEGORY_ORDER.indexOf(a[0]);
+    const bi = CATEGORY_ORDER.indexOf(b[0]);
+    if (ai === -1 && bi === -1) return b[1].total - a[1].total;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+
+  // KPI 카드 업데이트
+  const validSorted = sorted.filter(([name]) => name && name !== 'null');
+  if (validSorted.length) {
+    const [topName, topData] = validSorted[0];
+    document.getElementById('card-top-cat').textContent = topName;
+    document.getElementById('card-top-cnt').textContent = topData.total.toLocaleString() + '건';
+    document.getElementById('card-cat-count').textContent = validSorted.length;
+  } else {
+    document.getElementById('card-top-cat').textContent = '—';
+    document.getElementById('card-top-cnt').textContent = '—';
+    document.getElementById('card-cat-count').textContent = '0';
+  }
+
+  const body = document.getElementById('category-body');
+  if (!rows.length) { body.innerHTML = '<div class="empty">데이터 없음</div>'; return; }
+
+  const maxTotal = sorted[0]?.[1].total || 1;
+
+  let html = `
+    <table>
+      <thead><tr>
+        <th>대분류</th>
+        <th>소분류</th>
+        <th style="text-align:right">건수</th>
+        <th style="min-width:140px">비율</th>
+      </tr></thead>
+      <tbody>
+  `;
+
+  sorted.forEach(([main, g]) => {
+    const pct      = totalAll ? ((g.total / totalAll) * 100).toFixed(1) : 0;
+    const barW     = ((g.total / maxTotal) * 100).toFixed(1);
+    const mainLabel = (!main || main === 'null') ? '미분류' : main;
+    html += `
+      <tr class="clickable" onclick="loadDetail('${esc(main)}', null)">
+        <td><strong>${esc(mainLabel)}</strong></td>
+        <td style="color:#94a3b8;font-size:12px">전체</td>
+        <td style="text-align:right"><span class="count-badge">${g.total.toLocaleString()}</span></td>
+        <td>
+          <div class="prog-wrap">
+            <div class="prog-bar-bg"><div class="prog-bar-fill main" style="width:${barW}%"></div></div>
+            <span class="prog-pct">${pct}%</span>
+          </div>
+        </td>
+      </tr>
+    `;
+    g.subs.sort((a, b) => b.count - a.count).forEach(sub => {
+      const sp  = totalAll ? ((sub.count / totalAll) * 100).toFixed(1) : 0;
+      const sbW = ((sub.count / maxTotal) * 100).toFixed(1);
+      html += `
+        <tr class="clickable" onclick="loadDetail('${esc(main)}', '${esc(sub.new_category_sub)}')">
+          <td style="color:#cbd5e1;padding-left:28px;font-size:12px">└</td>
+          <td>${esc(sub.new_category_sub)}</td>
+          <td style="text-align:right"><span class="count-badge">${sub.count.toLocaleString()}</span></td>
+          <td>
+            <div class="prog-wrap">
+              <div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${sbW}%"></div></div>
+              <span class="prog-pct">${sp}%</span>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+  });
+
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+// ── 상세 드릴다운 ─────────────────────────────────────────────
+async function loadDetail(categoryMain, categorySub) {
+  document.getElementById('category-panel').style.display = 'none';
+  const panel = document.getElementById('detail-panel');
+  panel.style.display = 'block';
+
+  const title = categorySub ? `${categoryMain} > ${categorySub}` : categoryMain;
+  document.getElementById('detail-title').textContent = title;
+  document.getElementById('detail-body').innerHTML = '<div class="loading">불러오는 중...</div>';
+
+  const { period, date, startDate, endDate } = state;
+  const { start: issStart, end: issEnd } = getPeriodRange();
+  let url = `/api/issues?start_date=${issStart}&end_date=${issEnd}&category_main=${encodeURIComponent(categoryMain)}`;
+  if (categorySub) url += `&category_sub=${encodeURIComponent(categorySub)}`;
+
+  const result = await api(url);
+  const items = result.items || [];
+
+  if (!items.length) {
+    document.getElementById('detail-body').innerHTML = '<div class="empty">데이터 없음</div>';
+    return;
+  }
+
+  let html = `
+    <div style="color:#64748b;font-size:13px;margin-bottom:12px">총 <strong>${result.total.toLocaleString()}</strong>건</div>
+    <table>
+      <thead><tr>
+        <th>접수 시각</th>
+        <th>대분류</th>
+        <th>소분류</th>
+        <th>상담 메모</th>
+        <th style="text-align:right">이슈 ID</th>
+      </tr></thead>
+      <tbody>
+  `;
+  items.forEach(r => {
+    const memo = (r.call_memo || '').replace(/\n/g, '<br>');
+    html += `
+      <tr>
+        <td style="white-space:nowrap;color:#64748b">${r.created_date ? r.created_date.slice(0,16) : '—'}</td>
+        <td>${esc(r.new_category_main || '—')}</td>
+        <td>${esc(r.new_category_sub || '—')}</td>
+        <td style="font-size:13px;color:#374151;max-width:400px">${memo || '<span style="color:#cbd5e1">없음</span>'}</td>
+        <td style="text-align:right;color:#94a3b8;font-size:12px">${r.id}</td>
+      </tr>
+    `;
+  });
+  html += '</tbody></table>';
+  if (result.total > items.length) {
+    html += `<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px">상위 ${items.length}건만 표시 (전체 ${result.total.toLocaleString()}건)</div>`;
+  }
+  document.getElementById('detail-body').innerHTML = html;
+}
+
+function getPeriodRange() {
+  const today = todayStr();
+  if (state.period === 'hourly_range') return { start: state.startDate, end: state.endDate };
+  if (state.period === 'day') {
+    const d = new Date(); d.setDate(d.getDate() - 6);
+    return { start: d.toISOString().slice(0, 10), end: today };
+  }
+  if (state.period === 'week') {
+    const d = new Date(); d.setDate(d.getDate() - 41);
+    return { start: d.toISOString().slice(0, 10), end: today };
+  }
+  if (state.period === 'month') {
+    const d = new Date(); d.setMonth(d.getMonth() - 2); d.setDate(1);
+    return { start: d.toISOString().slice(0, 10), end: today };
+  }
+  return { start: today, end: today };
+}
+
+function showCategoryPanel() {
+  document.getElementById('category-panel').style.display = 'block';
+  document.getElementById('detail-panel').style.display = 'none';
+}
+
+// ── 마지막 수집 시각 ──────────────────────────────────────────
+async function loadLastCollected() {
+  try {
+    const r = await api('/api/collection/latest');
+    if (r.collected_at) {
+      document.getElementById('last-collected').textContent = '마지막 수집 ' + r.collected_at.slice(0, 16);
+    }
+  } catch (_) {}
+  setTimeout(loadLastCollected, 60000);
+}
+
+// ── 유틸 ─────────────────────────────────────────────────────
+async function api(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
