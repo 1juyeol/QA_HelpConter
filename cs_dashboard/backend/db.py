@@ -40,4 +40,11 @@ def init_db():
                 message TEXT
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS insights_cache (
+                key TEXT PRIMARY KEY,
+                data TEXT,
+                updated_at TEXT
+            )
+        """)
         conn.commit()

@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #1e293b; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #1e293b; display: flex; flex-direction: column; height: 100vh; }
 
   header {
     background: linear-gradient(135deg, #1e40af 0%, #1a56db 100%);
@@ -17,6 +17,7 @@
     align-items: center;
     justify-content: space-between;
     box-shadow: 0 2px 8px rgba(26,86,219,.25);
+    flex-shrink: 0;
   }
   .header-left h1 { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
   .header-left p  { font-size: 12px; opacity: .7; margin-top: 3px; }
@@ -27,7 +28,40 @@
     border-radius: 20px;
   }
 
-  .container { max-width: 1600px; margin: 0 auto; padding: 24px 20px; }
+  /* Layout */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: #fff;
+    border-right: 1px solid #e2e8f0;
+    padding: 16px 0;
+    overflow-y: auto;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .1s, color .1s;
+  }
+  .nav-item:hover { background: #f8fafc; color: #1e293b; }
+  .nav-item.active { color: #1a56db; background: #eff6ff; border-left-color: #1a56db; }
+  .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
 
   /* Toolbar */
   .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -114,7 +148,6 @@
   }
   .section-card h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
 
-  /* Split layout */
   .cat-layout { display: flex; gap: 0; min-height: 300px; }
 
   .cat-tree {
@@ -122,8 +155,6 @@
     flex-shrink: 0;
     padding-right: 20px;
     border-right: 1px solid #e2e8f0;
-    overflow-y: auto;
-    max-height: 560px;
   }
   .cat-main-header {
     display: flex;
@@ -172,7 +203,6 @@
     color: #1a56db;
   }
 
-  /* Memo panel (right side) */
   .cat-memo-panel {
     flex: 1;
     padding-left: 24px;
@@ -187,19 +217,9 @@
     color: #cbd5e1;
     font-size: 13px;
   }
-  .memo-header {
-    margin-bottom: 14px;
-  }
-  .memo-header .memo-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #1e293b;
-    margin-bottom: 4px;
-  }
-  .memo-header .memo-count {
-    font-size: 12px;
-    color: #94a3b8;
-  }
+  .memo-header { margin-bottom: 14px; }
+  .memo-header .memo-title { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+  .memo-header .memo-count { font-size: 12px; color: #94a3b8; }
 
   /* Table */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -229,6 +249,90 @@
 
   .loading { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
   .empty   { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
+
+  /* Sidebar sub-menu */
+  .nav-group-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .1s, color .1s;
+    user-select: none;
+  }
+  .nav-group-label:hover { background: #f8fafc; color: #1e293b; }
+  .nav-group-label .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-group-label .nav-arrow { margin-left: auto; font-size: 10px; transition: transform .15s; }
+  .nav-group-label.open .nav-arrow { transform: rotate(90deg); }
+  .nav-sub { display: none; }
+  .nav-sub.open { display: block; }
+  .nav-sub-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px 8px 40px;
+    font-size: 13px;
+    color: #64748b;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .1s, color .1s;
+  }
+  .nav-sub-item:hover { background: #f8fafc; color: #1e293b; }
+  .nav-sub-item.active { color: #1a56db; background: #eff6ff; border-left-color: #1a56db; }
+
+  /* Insights page */
+  .insight-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .insight-table-wrap { overflow-x: auto; }
+  .ticket-link { color: #1a56db; text-decoration: none; font-size: 12px; }
+  .ticket-link:hover { text-decoration: underline; }
+  .rank-badge {
+    display: inline-block;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    line-height: 24px;
+  }
+  .rank-badge.top { background: #fef3c7; color: #d97706; }
+  .cat-filter-btn {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    transition: background .1s, color .1s, border-color .1s;
+  }
+  .cat-filter-btn:hover { background: #f8fafc; }
+  .cat-filter-btn.active { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .memo-toggle {
+    background: none; border: none; cursor: pointer;
+    font-size: 12px; color: #1a56db; padding: 0;
+  }
+  .memo-toggle:hover { text-decoration: underline; }
+  .memo-expand-row { display: none; }
+  .memo-expand-row.open { display: table-row; }
+  .memo-expand-inner {
+    padding: 10px 12px 14px 12px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+  }
+  .memo-item {
+    padding: 8px 0;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 13px;
+    color: #374151;
+  }
+  .memo-item:last-child { border-bottom: none; }
+  .memo-item-date { font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
 </style>
 </head>
 <body>
@@ -241,76 +345,170 @@
   <span id="last-collected">마지막 수집: —</span>
 </header>
 
-<div class="container">
+<div class="layout">
 
-  <!-- 기간 선택 -->
-  <div class="toolbar">
-    <div class="tabs">
-      <button class="active" data-period="hourly_range">시간별</button>
-      <button data-period="day">일별</button>
-      <button data-period="week">주별</button>
-      <button data-period="month">월별</button>
+  <!-- 사이드바 -->
+  <nav class="sidebar">
+    <div class="nav-item active" data-page="dashboard">
+      <span class="nav-icon">📊</span> 대시보드
     </div>
-    <span id="single-date-wrap" style="display:none">
-      <input type="date" id="date-input">
-    </span>
-    <span id="range-date-wrap" style="display:flex;gap:6px;align-items:center;">
-      <input type="date" id="start-date-input">
-      <span style="color:#94a3b8">~</span>
-      <input type="date" id="end-date-input">
-    </span>
-    <button id="refresh-btn">↻ 새로고침</button>
-  </div>
+    <div class="nav-group-label open" id="nav-insights-toggle">
+      <span class="nav-icon">💡</span> 인사이트
+      <span class="nav-arrow">▶</span>
+    </div>
+    <div class="nav-sub open" id="nav-insights-sub">
+      <div class="nav-sub-item" data-page="insights-wings">반복 Wings 티켓</div>
+      <div class="nav-sub-item" data-page="insights-parents">학부모 반복 인입</div>
+    </div>
+  </nav>
 
-  <!-- KPI 카드 3개 -->
-  <div class="cards">
-    <div class="card blue">
-      <div class="label" id="card-label">상담건수</div>
-      <div class="value" id="card-total">—</div>
-      <div class="sub"   id="card-sub">—</div>
-    </div>
-    <div class="card green">
-      <div class="label">최다 문의 유형</div>
-      <div class="value" id="card-top-cat" style="font-size:18px;line-height:1.4">—</div>
-      <div class="sub"   id="card-top-cnt">—</div>
-    </div>
-    <div class="card amber">
-      <div class="label">분류 항목 수</div>
-      <div class="value" id="card-cat-count">—</div>
-      <div class="sub">대분류 기준</div>
-    </div>
-  </div>
+  <!-- 콘텐츠 영역 -->
+  <div class="content">
 
-  <!-- 꺾은선 차트 -->
-  <div class="chart-card">
-    <h2 id="chart-title">시간대별 상담 건수</h2>
-    <canvas id="main-chart"></canvas>
-  </div>
+    <!-- 대시보드 페이지 -->
+    <div class="page active" id="page-dashboard">
+      <div class="container">
 
-  <!-- 카테고리 + 메모 패널 -->
-  <div class="section-card">
-    <h2>카테고리별 건수</h2>
-    <div class="cat-layout">
-      <div class="cat-tree" id="cat-tree"><div class="loading">불러오는 중...</div></div>
-      <div class="cat-memo-panel" id="cat-memo-panel">
-        <div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>
+        <div class="toolbar">
+          <div class="tabs">
+            <button class="active" data-period="hourly_range">시간별</button>
+            <button data-period="day">일별</button>
+            <button data-period="week">주별</button>
+            <button data-period="month">월별</button>
+          </div>
+          <span id="single-date-wrap" style="display:none">
+            <input type="date" id="date-input">
+          </span>
+          <span id="range-date-wrap" style="display:flex;gap:6px;align-items:center;">
+            <input type="date" id="start-date-input">
+            <span style="color:#94a3b8">~</span>
+            <input type="date" id="end-date-input">
+          </span>
+          <button id="refresh-btn">↻ 새로고침</button>
+        </div>
+
+        <div class="cards">
+          <div class="card blue">
+            <div class="label" id="card-label">상담건수</div>
+            <div class="value" id="card-total">—</div>
+            <div class="sub"   id="card-sub">—</div>
+          </div>
+          <div class="card green">
+            <div class="label">최다 문의 유형</div>
+            <div class="value" id="card-top-cat" style="font-size:18px;line-height:1.4">—</div>
+            <div class="sub"   id="card-top-cnt">—</div>
+          </div>
+          <div class="card amber">
+            <div class="label">분류 항목 수</div>
+            <div class="value" id="card-cat-count">—</div>
+            <div class="sub">대분류 기준</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <h2 id="chart-title">시간대별 상담 건수</h2>
+          <canvas id="main-chart"></canvas>
+        </div>
+
+        <div class="section-card">
+          <h2>카테고리별 건수</h2>
+          <div id="cat-filter-indicator" style="display:none;margin-bottom:12px;padding:6px 12px;background:#eff6ff;border-radius:6px;font-size:12px;color:#1a56db;align-items:center;justify-content:space-between;">
+            <span id="cat-filter-label"></span>
+            <button onclick="clearSegmentFilter()" style="background:none;border:none;cursor:pointer;color:#1a56db;font-size:16px;line-height:1;padding:0 0 0 8px">×</button>
+          </div>
+          <div class="cat-layout">
+            <div class="cat-tree" id="cat-tree"><div class="loading">불러오는 중...</div></div>
+            <div class="cat-memo-panel" id="cat-memo-panel">
+              <div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
-  </div>
 
+    <!-- 인사이트: 반복 Wings 티켓 -->
+    <div class="page" id="page-insights-wings">
+      <div class="container">
+        <div class="section-card">
+          <h2>반복 Wings 티켓</h2>
+          <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">여러 CS 건에서 동일하게 언급된 Wings 티켓 — 다수 고객에게 영향을 준 이슈를 확인할 수 있습니다.</p>
+          <div class="insight-toolbar">
+            <span id="wings-updated-at" style="font-size:12px;color:#94a3b8"></span>
+            <button id="insight-refresh-btn" style="padding:8px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:#374151;">↻ 새로고침</button>
+          </div>
+          <div id="insight-table-wrap" class="insight-table-wrap">
+            <div class="empty">기간을 선택하고 조회하세요</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 인사이트: 학부모 반복 인입 -->
+    <div class="page" id="page-insights-parents">
+      <div class="container">
+        <div class="section-card">
+          <h2>학부모 반복 인입</h2>
+          <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">동일 학부모가 여러 차례 CS 인입한 건 — 미해결 이슈나 반복 불만 고객을 파악할 수 있습니다.</p>
+          <div class="insight-toolbar">
+            <span id="parents-updated-at" style="font-size:12px;color:#94a3b8"></span>
+            <button id="parents-refresh-btn" style="padding:8px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:#374151;">↻ 새로고침</button>
+          </div>
+          <div id="parents-cat-filter" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:16px"></div>
+          <div id="parents-table-wrap" class="insight-table-wrap">
+            <div class="empty">기간을 선택하고 조회하세요</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
-// ── 상태 ──────────────────────────────────────────────────────
+// ── 페이지 네비게이션 ──────────────────────────────────────────
+function navigateTo(page) {
+  document.querySelectorAll('.nav-item, .nav-sub-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const navEl = document.querySelector(`[data-page="${page}"]`);
+  if (navEl) navEl.classList.add('active');
+  document.getElementById('page-' + page).classList.add('active');
+}
+
+document.querySelector('.nav-item[data-page="dashboard"]').addEventListener('click', () => navigateTo('dashboard'));
+
+const insightsToggle = document.getElementById('nav-insights-toggle');
+const insightsSub = document.getElementById('nav-insights-sub');
+insightsToggle.addEventListener('click', () => {
+  insightsToggle.classList.toggle('open');
+  insightsSub.classList.toggle('open');
+});
+
+document.querySelectorAll('.nav-sub-item').forEach(item => {
+  item.addEventListener('click', () => {
+    if (!insightsSub.classList.contains('open')) {
+      insightsToggle.classList.add('open');
+      insightsSub.classList.add('open');
+    }
+    navigateTo(item.dataset.page);
+    if (item.dataset.page === 'insights-wings') loadInsights();
+    if (item.dataset.page === 'insights-parents') loadParents();
+  });
+});
+
+// ── 대시보드 상태 ─────────────────────────────────────────────
 let state = {
   period: 'hourly_range',
   date: todayStr(),
   startDate: todayStr(),
   endDate: todayStr(),
+  selectedSegment: null,
 };
 let chartInstance = null;
 let _catData = null;
-let _selectedSub = null; // { main, sub }
+let _selectedSub = null;
+let _chartRows = null;
+const CATEGORY_ORDER = ['네트워크·앱 오류','기기·하드웨어 오류','미납·결제','해지·유지 상담','체험 관련','교재·물류·배송','계정·서비스','기타'];
 
 // ── 초기화 ────────────────────────────────────────────────────
 document.getElementById('header-date').textContent = new Date().toLocaleDateString('ko-KR', {
@@ -326,7 +524,7 @@ document.querySelectorAll('.tabs button').forEach(btn => {
     btn.classList.add('active');
     state.period = btn.dataset.period;
     const isRange = state.period === 'hourly_range';
-    document.getElementById('single-date-wrap').style.display = 'none';
+    document.getElementById('single-date-wrap').style.display = isRange ? 'none' : 'flex';
     document.getElementById('range-date-wrap').style.display = isRange ? 'flex' : 'none';
     loadAll();
   });
@@ -336,15 +534,29 @@ document.getElementById('date-input').addEventListener('change', e => { state.da
 document.getElementById('start-date-input').addEventListener('change', e => { state.startDate = e.target.value; loadAll(); });
 document.getElementById('end-date-input').addEventListener('change', e => { state.endDate = e.target.value; loadAll(); });
 document.getElementById('refresh-btn').addEventListener('click', loadAll);
+document.getElementById('insight-refresh-btn').addEventListener('click', async () => {
+  document.getElementById('insight-refresh-btn').textContent = '업데이트 중...';
+  await api('/api/insights/refresh', 'POST');
+  await loadInsights();
+  document.getElementById('insight-refresh-btn').textContent = '↻ 새로고침';
+});
+document.getElementById('parents-refresh-btn').addEventListener('click', async () => {
+  document.getElementById('parents-refresh-btn').textContent = '업데이트 중...';
+  await api('/api/insights/refresh', 'POST');
+  await loadParents();
+  document.getElementById('parents-refresh-btn').textContent = '↻ 새로고침';
+});
 
 loadAll();
 loadLastCollected();
 
 // ── 전체 로드 ─────────────────────────────────────────────────
 async function loadAll() {
+  state.selectedSegment = null;
   _selectedSub = null;
   document.getElementById('cat-memo-panel').innerHTML =
     '<div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>';
+  renderCategoryFilter();
   await Promise.all([loadChart(), loadCategory()]);
 }
 
@@ -355,7 +567,8 @@ async function loadChart() {
 
   if (period === 'hourly_range') {
     const rows = await api(`/api/stats/hourly_range?start_date=${startDate}&end_date=${endDate}`);
-    labels = rows.map(r => r.hour + '시');
+    _chartRows = rows;
+    labels = rows.map(r => r.bucket);
     data = rows.map(r => r.count);
     chartLabel = `시간대별 누적 건수 (${startDate} ~ ${endDate})`;
   } else if (period === 'day') {
@@ -363,16 +576,19 @@ async function loadChart() {
     const d = new Date(); d.setDate(d.getDate() - 6);
     const start = d.toISOString().slice(0, 10);
     const rows = await api(`/api/stats/daily?target_date=${today}&period=week`);
+    _chartRows = rows;
     labels = rows.map(r => r.date.slice(5));
     data = rows.map(r => r.count);
     chartLabel = `일별 상담 건수 (최근 7일, ${start} ~ ${today})`;
   } else if (period === 'week') {
     const rows = await api('/api/stats/weekly');
+    _chartRows = rows;
     labels = rows.map(r => r.week_start.slice(5) + ' ~');
     data = rows.map(r => r.count);
-    chartLabel = '주별 상담 건수 (최근 6주)';
+    chartLabel = '주별 상담 건수 (최근 1달, 월요일 기준)';
   } else if (period === 'month') {
     const rows = await api('/api/stats/monthly');
+    _chartRows = rows;
     labels = rows.map(r => r.month.slice(5) + '월');
     data = rows.map(r => r.count);
     chartLabel = '월별 상담 건수 (최근 3개월)';
@@ -381,8 +597,8 @@ async function loadChart() {
   document.getElementById('chart-title').textContent = chartLabel;
 
   const total = data.reduce((s, v) => s + v, 0);
-  const labelMap = { day: '상담건수 (7일)', week: '상담건수 (6주)', month: '상담건수 (3개월)', hourly_range: '상담건수 (기간)' };
-  const subMap   = { day: '최근 7일 합계', week: '최근 6주 합계', month: '최근 3개월 합계', hourly_range: '기간 합계' };
+  const labelMap = { day: '상담건수 (7일)', week: '상담건수 (1달)', month: '상담건수 (3개월)', hourly_range: '상담건수 (기간)' };
+  const subMap   = { day: '최근 7일 합계', week: '최근 1달 합계', month: '최근 3개월 합계', hourly_range: '기간 합계' };
   document.getElementById('card-label').textContent = labelMap[period];
   document.getElementById('card-total').textContent = total.toLocaleString() + '건';
   document.getElementById('card-sub').textContent = subMap[period];
@@ -409,9 +625,42 @@ async function loadChart() {
     },
     options: {
       responsive: true,
+      onClick: (event, elements) => {
+        if (!elements.length || !_chartRows) return;
+        const idx = elements[0].index;
+        const row = _chartRows[idx];
+        _selectedSub = null;
+        document.getElementById('cat-memo-panel').innerHTML =
+          '<div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>';
+        if (state.period === 'hourly_range') {
+          state.selectedSegment = { type: 'bucket', bucket: row.bucket };
+        } else if (state.period === 'day') {
+          state.selectedSegment = { type: 'date', date: row.date };
+        } else if (state.period === 'week') {
+          state.selectedSegment = { type: 'week', weekStart: row.week_start };
+        } else if (state.period === 'month') {
+          state.selectedSegment = { type: 'month', month: row.month };
+        }
+        renderCategoryFilter();
+        loadCategory();
+      },
+      onHover: (event, elements) => {
+        event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+      },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y.toLocaleString()}건` } },
+        tooltip: { callbacks: {
+          title: ctx => {
+            const b = ctx[0].label;
+            if (state.period !== 'hourly_range') return b;
+            if (b === '~09:00' || b === '21:00~') return b;
+            const [hh, mm] = b.split(':');
+            const endMm = mm === '00' ? '30' : '00';
+            const endHh = mm === '00' ? hh : String(Number(hh) + 1).padStart(2, '0');
+            return `${b} ~ ${endHh}:${endMm}`;
+          },
+          label: ctx => ` ${ctx.parsed.y.toLocaleString()}건`,
+        } },
       },
       scales: {
         y: { beginAtZero: true, ticks: { stepSize: {hourly_range:50, day:200, week:5000, month:5000}[period] ?? 1 }, grid: { color: '#f1f5f9' } },
@@ -423,8 +672,10 @@ async function loadChart() {
 
 // ── 카테고리 트리 ─────────────────────────────────────────────
 async function loadCategory() {
-  const { start: catStart, end: catEnd } = getPeriodRange();
-  const rows = await api(`/api/stats/category?start_date=${catStart}&end_date=${catEnd}`);
+  const { start: catStart, end: catEnd, bucket } = getActiveFilter();
+  let catUrl = `/api/stats/category?start_date=${catStart}&end_date=${catEnd}`;
+  if (bucket) catUrl += `&bucket=${encodeURIComponent(bucket)}`;
+  const rows = await api(catUrl);
 
   const grouped = {};
   let totalAll = 0;
@@ -436,7 +687,6 @@ async function loadCategory() {
     totalAll += r.count;
   });
 
-  const CATEGORY_ORDER = ['네트워크·앱 오류','기기·하드웨어 오류','미납·결제','해지·유지 상담','체험 관련','교재·물류·배송','계정·서비스','기타'];
   const sorted = Object.entries(grouped).sort((a, b) => {
     const ai = CATEGORY_ORDER.indexOf(a[0]);
     const bi = CATEGORY_ORDER.indexOf(b[0]);
@@ -486,27 +736,37 @@ async function loadCategory() {
 }
 
 // ── 소분류 선택 → 메모 로드 ──────────────────────────────────
+const PAGE_SIZE = 100;
+let _subPage = 0;
+
 async function selectSub(mainKey, subKey) {
   _selectedSub = { main: mainKey, sub: subKey };
-
+  _subPage = 0;
   document.querySelectorAll('.cat-sub-item').forEach(el => {
     el.classList.toggle('active', el.dataset.main === mainKey && el.dataset.sub === subKey);
   });
+  await renderSubMemos();
+}
 
+async function renderSubMemos() {
+  const { main: mainKey, sub: subKey } = _selectedSub;
   const panel = document.getElementById('cat-memo-panel');
   panel.innerHTML = '<div class="loading">불러오는 중...</div>';
 
-  const { start, end } = getPeriodRange();
-  const url = (!mainKey || mainKey === 'null')
+  const { start, end, bucket } = getActiveFilter();
+  const bucketParam = bucket ? `&bucket=${encodeURIComponent(bucket)}` : '';
+  const base = (!mainKey || mainKey === 'null')
     ? `/api/issues?start_date=${start}&end_date=${end}&unclassified=1`
     : `/api/issues?start_date=${start}&end_date=${end}&category_main=${encodeURIComponent(mainKey)}&category_sub=${encodeURIComponent(subKey)}`;
-  const result = await api(url);
+  const result = await api(`${base}${bucketParam}&limit=${PAGE_SIZE}&offset=${_subPage * PAGE_SIZE}`);
   const items = result.items || [];
+  const total = result.total || 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const mainLabel = (!mainKey || mainKey === 'null') ? '미분류' : mainKey;
   let html = `<div class="memo-header">
     <div class="memo-title">${esc(mainLabel)} &rsaquo; ${esc(subKey)}</div>
-    <div class="memo-count">총 ${result.total.toLocaleString()}건${result.total > items.length ? ` (상위 ${items.length}건 표시)` : ''}</div>
+    <div class="memo-count">총 ${total.toLocaleString()}건 · ${_subPage + 1} / ${totalPages || 1} 페이지</div>
   </div>`;
 
   if (!items.length) {
@@ -518,8 +778,7 @@ async function selectSub(mainKey, subKey) {
         <th style="width:90px">학부모번호</th>
         <th>상담 메모</th>
         <th style="width:130px">접수 시각</th>
-      </tr></thead>
-      <tbody>`;
+      </tr></thead><tbody>`;
     items.forEach(r => {
       const memo = (r.call_memo || '').replace(/\n/g, '<br>');
       html += `<tr>
@@ -530,9 +789,275 @@ async function selectSub(mainKey, subKey) {
       </tr>`;
     });
     html += '</tbody></table>';
+
+    if (totalPages > 1) {
+      html += `<div style="display:flex;align-items:center;gap:8px;padding:14px 0 4px;justify-content:center;">
+        <button onclick="movePage(-1)" ${_subPage === 0 ? 'disabled' : ''}
+          style="padding:6px 14px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;color:#374151;${_subPage === 0 ? 'opacity:.4;cursor:default' : ''}">
+          ← 이전
+        </button>
+        <span style="font-size:13px;color:#64748b">${_subPage + 1} / ${totalPages}</span>
+        <button onclick="movePage(1)" ${_subPage >= totalPages - 1 ? 'disabled' : ''}
+          style="padding:6px 14px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;color:#374151;${_subPage >= totalPages - 1 ? 'opacity:.4;cursor:default' : ''}">
+          다음 →
+        </button>
+      </div>`;
+    }
   }
 
   panel.innerHTML = html;
+}
+
+async function movePage(dir) {
+  _subPage += dir;
+  await renderSubMemos();
+}
+
+// ── 인사이트: Wings 티켓 집계 ─────────────────────────────────
+async function loadInsights() {
+  const wrap = document.getElementById('insight-table-wrap');
+  wrap.innerHTML = '<div class="loading">불러오는 중...</div>';
+
+  const res = await api('/api/insights/wings_tickets');
+  const rows = res.data || [];
+  document.getElementById('wings-updated-at').textContent =
+    res.updated_at ? `최근 30일 기준 · 업데이트: ${res.updated_at.slice(0,16)}` : '';
+
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">해당 기간에 Wings 티켓 언급 없음</div>';
+    return;
+  }
+
+  let html = `<table>
+    <thead><tr>
+      <th style="width:40px">#</th>
+      <th style="width:120px">티켓 번호</th>
+      <th style="width:80px">CS 건수</th>
+      <th style="width:90px">상태</th>
+      <th>최근 메모</th>
+      <th style="width:130px">최초 접수</th>
+      <th style="width:130px">최근 접수</th>
+    </tr></thead>
+    <tbody>`;
+
+  rows.forEach((r, i) => {
+    const isTop = i < 3;
+    const latestMemo = (r.memos && r.memos[0]) ? r.memos[0].memo : '';
+    const preview = latestMemo.replace(/\n/g, ' ').slice(0, 100);
+    const rowId = `memo-expand-${i}`;
+
+    const diffDays = r.first_date && r.latest_date
+      ? Math.floor((new Date(r.latest_date) - new Date(r.first_date)) / 86400000)
+      : 0;
+    const delayed = diffDays >= 7;
+    const statusBadge = delayed
+      ? `<span style="display:inline-block;background:#fee2e2;color:#dc2626;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700">처리 지연</span>`
+      : `<span style="display:inline-block;background:#f1f5f9;color:#64748b;border-radius:999px;padding:2px 8px;font-size:11px">진행중</span>`;
+
+    html += `<tr>
+      <td><span class="rank-badge${isTop ? ' top' : ''}">${i + 1}</span></td>
+      <td><a class="ticket-link" href="https://wings.danbiedu.co.kr/#ticket/zoom/${esc(r.ticket_id)}" target="_blank">#${esc(r.ticket_id)}</a></td>
+      <td><span class="count-badge">${r.cs_count}건</span></td>
+      <td>${statusBadge}${delayed ? `<div style="font-size:11px;color:#94a3b8;margin-top:3px">${diffDays}일 경과</div>` : ''}</td>
+      <td style="color:#374151;font-size:13px">
+        ${esc(preview)}${latestMemo.length > 100 ? '…' : ''}
+        ${r.memos && r.memos.length > 0 ? `<br><button class="memo-toggle" onclick="toggleMemos('${rowId}', this)">▶ 전체 이력 보기 (${r.memos.length}건)</button>` : ''}
+      </td>
+      <td style="white-space:nowrap;color:#64748b;font-size:12px">${r.first_date ? r.first_date.slice(0,16) : '—'}</td>
+      <td style="white-space:nowrap;color:#64748b;font-size:12px">${r.latest_date ? r.latest_date.slice(0,16) : '—'}</td>
+    </tr>
+    <tr class="memo-expand-row" id="${rowId}">
+      <td colspan="7" style="padding:0">
+        <div class="memo-expand-inner">
+          ${(r.memos || []).map(m => `
+            <div class="memo-item">
+              <div class="memo-item-date">${m.date ? m.date.slice(0,16) : '—'}</div>
+              <div>${esc(m.memo || '').replace(/\n/g, '<br>')}</div>
+            </div>`).join('')}
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── 인사이트: 학부모 반복 인입 ───────────────────────────────
+let _parentsData = [];
+let _parentsActiveCats = new Set();
+
+async function loadParents() {
+  const wrap = document.getElementById('parents-table-wrap');
+  wrap.innerHTML = '<div class="loading">불러오는 중...</div>';
+
+  const res = await api('/api/insights/repeat_parents');
+  _parentsData = res.data || [];
+  document.getElementById('parents-updated-at').textContent =
+    res.updated_at ? `최근 30일 기준 · 업데이트: ${res.updated_at.slice(0,16)}` : '';
+  _parentsActiveCats = new Set();
+
+  if (!_parentsData.length) {
+    document.getElementById('parents-cat-filter').style.display = 'none';
+    wrap.innerHTML = '<div class="empty">해당 기간에 반복 인입 없음</div>';
+    return;
+  }
+
+  // 대분류 목록 추출 (카테고리 순서 기준)
+  const allCats = [...new Set(_parentsData.flatMap(r => r.categories || []))]
+    .sort((a, b) => {
+      const ai = CATEGORY_ORDER.indexOf(a);
+      const bi = CATEGORY_ORDER.indexOf(b);
+      if (ai === -1 && bi === -1) return a.localeCompare(b);
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  const filterEl = document.getElementById('parents-cat-filter');
+  filterEl.style.display = 'flex';
+  filterEl.innerHTML = ['전체', ...allCats].map(cat =>
+    `<button class="cat-filter-btn${cat === '전체' ? ' active' : ''}" data-cat="${esc(cat)}" onclick="toggleParentCat('${esc(cat)}')">${esc(cat)}</button>`
+  ).join('');
+
+  renderParentsTable();
+}
+
+function toggleParentCat(cat) {
+  if (cat === '전체') {
+    _parentsActiveCats = new Set();
+  } else {
+    if (_parentsActiveCats.has(cat)) _parentsActiveCats.delete(cat);
+    else _parentsActiveCats.add(cat);
+  }
+  document.querySelectorAll('.cat-filter-btn').forEach(btn => {
+    const isAll = btn.dataset.cat === '전체';
+    btn.classList.toggle('active', isAll ? _parentsActiveCats.size === 0 : _parentsActiveCats.has(btn.dataset.cat));
+  });
+  renderParentsTable();
+}
+
+function renderParentsTable() {
+  const rows = _parentsActiveCats.size === 0
+    ? _parentsData
+    : _parentsData.filter(r => (r.categories || []).some(c => _parentsActiveCats.has(c)));
+
+  const wrap = document.getElementById('parents-table-wrap');
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">해당 분류의 반복 인입 없음</div>'; return; }
+
+  let html = `<table>
+    <thead><tr>
+      <th style="width:40px">#</th>
+      <th style="width:120px">학부모 번호</th>
+      <th style="width:80px">인입 횟수</th>
+      <th>최근 메모</th>
+      <th style="width:130px">최근 접수</th>
+    </tr></thead>
+    <tbody>`;
+
+  rows.forEach((r, i) => {
+    const isTop = i < 3;
+    const latestMemo = (r.memos && r.memos[0]) ? r.memos[0].memo : '';
+    const preview = latestMemo.replace(/\n/g, ' ').slice(0, 80);
+    const rowId = `parent-expand-${i}`;
+
+    html += `<tr>
+      <td><span class="rank-badge${isTop ? ' top' : ''}">${i + 1}</span></td>
+      <td style="font-size:13px;color:#374151;font-weight:600">${esc(r.parent_id)}</td>
+      <td><span class="count-badge">${r.cs_count}건</span></td>
+      <td style="color:#374151;font-size:13px">
+        ${esc(preview)}${latestMemo.length > 80 ? '…' : ''}
+        ${r.memos && r.memos.length > 0 ? `<br><button class="memo-toggle" onclick="toggleMemos('${rowId}', this)">▶ 전체 이력 보기 (${r.memos.length}건)</button>` : ''}
+      </td>
+      <td style="white-space:nowrap;color:#64748b;font-size:12px">${r.latest_date ? r.latest_date.slice(0,16) : '—'}</td>
+    </tr>
+    <tr class="memo-expand-row" id="${rowId}">
+      <td colspan="5" style="padding:0">
+        <div class="memo-expand-inner">
+          ${(r.memos || []).map(m => `
+            <div class="memo-item">
+              <div class="memo-item-date">${m.date ? m.date.slice(0,16) : '—'} · ${esc(m.category || '')}</div>
+              <div>${esc(m.memo || '').replace(/\n/g, '<br>')}</div>
+            </div>`).join('')}
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function toggleMemos(rowId, btn) {
+  const row = document.getElementById(rowId);
+  const open = row.classList.toggle('open');
+  btn.textContent = open
+    ? `▼ 접기`
+    : `▶ 전체 이력 보기 (${btn.textContent.match(/\d+/)?.[0] || ''}건)`;
+}
+
+function getActiveFilter() {
+  if (!state.selectedSegment) {
+    const { start, end } = getPeriodRange();
+    return { start, end, bucket: null };
+  }
+  const seg = state.selectedSegment;
+  if (seg.type === 'bucket') {
+    const { start, end } = getPeriodRange();
+    return { start, end, bucket: seg.bucket };
+  }
+  if (seg.type === 'date') {
+    return { start: seg.date, end: seg.date, bucket: null };
+  }
+  if (seg.type === 'week') {
+    const d = new Date(seg.weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + 6);
+    return { start: seg.weekStart, end: d.toISOString().slice(0, 10), bucket: null };
+  }
+  if (seg.type === 'month') {
+    const [year, month] = seg.month.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    return { start: `${seg.month}-01`, end: `${seg.month}-${String(lastDay).padStart(2, '0')}`, bucket: null };
+  }
+  return { start: todayStr(), end: todayStr(), bucket: null };
+}
+
+function renderCategoryFilter() {
+  const indicator = document.getElementById('cat-filter-indicator');
+  if (!state.selectedSegment) {
+    indicator.style.display = 'none';
+    return;
+  }
+  const seg = state.selectedSegment;
+  let label;
+  if (seg.type === 'bucket') {
+    const b = seg.bucket;
+    if (b === '~09:00' || b === '21:00~') {
+      label = `시간대 필터: ${b}`;
+    } else {
+      const [hh, mm] = b.split(':');
+      const endMm = mm === '00' ? '30' : '00';
+      const endHh = mm === '00' ? hh : String(Number(hh) + 1).padStart(2, '0');
+      label = `시간대 필터: ${b} ~ ${endHh}:${endMm}`;
+    }
+  } else if (seg.type === 'date') {
+    label = `날짜 필터: ${seg.date}`;
+  } else if (seg.type === 'week') {
+    const { start, end } = getActiveFilter();
+    label = `주 필터: ${start} ~ ${end}`;
+  } else if (seg.type === 'month') {
+    label = `월 필터: ${seg.month}`;
+  }
+  document.getElementById('cat-filter-label').textContent = label;
+  indicator.style.display = 'flex';
+}
+
+function clearSegmentFilter() {
+  state.selectedSegment = null;
+  _selectedSub = null;
+  document.getElementById('cat-memo-panel').innerHTML =
+    '<div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>';
+  renderCategoryFilter();
+  loadCategory();
 }
 
 function getPeriodRange() {
@@ -543,7 +1068,7 @@ function getPeriodRange() {
     return { start: d.toISOString().slice(0, 10), end: today };
   }
   if (state.period === 'week') {
-    const d = new Date(); d.setDate(d.getDate() - 41);
+    const d = new Date(); d.setDate(d.getDate() - 30);
     return { start: d.toISOString().slice(0, 10), end: today };
   }
   if (state.period === 'month') {
@@ -553,7 +1078,6 @@ function getPeriodRange() {
   return { start: today, end: today };
 }
 
-// ── 마지막 수집 시각 ──────────────────────────────────────────
 async function loadLastCollected() {
   try {
     const r = await api('/api/collection/latest');
@@ -564,9 +1088,8 @@ async function loadLastCollected() {
   setTimeout(loadLastCollected, 60000);
 }
 
-// ── 유틸 ─────────────────────────────────────────────────────
-async function api(url) {
-  const res = await fetch(url);
+async function api(url, method = 'GET') {
+  const res = await fetch(url, { method });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

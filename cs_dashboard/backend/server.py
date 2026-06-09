@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import date, timedelta
 from pathlib import Path
 from fastapi import FastAPI, Query
@@ -21,12 +22,69 @@ app.add_middleware(
 )
 
 
+from insights import compute_wings_tickets, compute_repeat_parents
+
+
+def _save_insights_cache(wings, parents):
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with get_conn() as conn:
+        conn.execute("INSERT OR REPLACE INTO insights_cache VALUES (?, ?, ?)",
+                     ("wings_tickets", json.dumps(wings, ensure_ascii=False), now))
+        conn.execute("INSERT OR REPLACE INTO insights_cache VALUES (?, ?, ?)",
+                     ("repeat_parents", json.dumps(parents, ensure_ascii=False), now))
+        conn.commit()
+
+
+def _read_cache(key):
+    with get_conn() as conn:
+        row = conn.execute("SELECT data, updated_at FROM insights_cache WHERE key=?", (key,)).fetchone()
+    return row
+
+
 @app.on_event("startup")
 async def startup():
     prompt_credentials()
     init_db()
     start_scheduler()
     asyncio.create_task(collect_today())
+    asyncio.create_task(_init_insights_cache())
+
+
+async def _init_insights_cache():
+    with get_conn() as conn:
+        has_cache = conn.execute("SELECT 1 FROM insights_cache LIMIT 1").fetchone()
+    if not has_cache:
+        end = str(date.today())
+        start = str(date.today() - timedelta(days=30))
+        _save_insights_cache(compute_wings_tickets(start, end), compute_repeat_parents(start, end))
+
+
+BUCKET_SQL = """
+    CASE
+        WHEN CAST(strftime('%H', datetime(created_date, '+9 hours')) AS INTEGER) < 9 THEN '~09:00'
+        WHEN CAST(strftime('%H', datetime(created_date, '+9 hours')) AS INTEGER) >= 21 THEN '21:00~'
+        ELSE strftime('%H', datetime(created_date, '+9 hours')) || ':' ||
+             CASE WHEN CAST(strftime('%M', datetime(created_date, '+9 hours')) AS INTEGER) < 30
+                  THEN '00' ELSE '30' END
+    END AS bucket
+"""
+BUCKETS = ['~09:00'] + [f"{h:02d}:{m}" for h in range(9, 21) for m in ('00', '30')] + ['21:00~']
+
+
+def _bucket_where(bucket: str):
+    dt = "datetime(created_date, '+9 hours')"
+    h = f"CAST(strftime('%H', {dt}) AS INTEGER)"
+    m = f"CAST(strftime('%M', {dt}) AS INTEGER)"
+    if bucket == '~09:00':
+        return f"{h} < 9", []
+    if bucket == '21:00~':
+        return f"{h} >= 21", []
+    hh, mm = bucket.split(':')
+    hh = int(hh)
+    if mm == '00':
+        return f"({h} = {hh} AND {m} < 30)", []
+    return f"({h} = {hh} AND {m} >= 30)", []
 
 
 # ── 시간대별 (일별 뷰에서 꺾은선용) ──────────────────────────────
@@ -36,17 +94,12 @@ def stats_hourly(target_date: str = Query(default=None)):
         target_date = str(date.today())
     with get_conn() as conn:
         rows = conn.execute(
-            """
-            SELECT strftime('%H', datetime(created_date, '+9 hours')) AS hour,
-                   COUNT(*) AS count
-            FROM issues
-            WHERE date(datetime(created_date, '+9 hours')) = ?
-            GROUP BY hour ORDER BY hour
-            """,
+            f"SELECT {BUCKET_SQL}, COUNT(*) AS count FROM issues "
+            "WHERE date(datetime(created_date, '+9 hours')) = ? GROUP BY bucket",
             (target_date,),
         ).fetchall()
-    count_map = {r["hour"]: r["count"] for r in rows}
-    return [{"hour": f"{h:02d}", "count": count_map.get(f"{h:02d}", 0)} for h in range(24)]
+    count_map = {r["bucket"]: r["count"] for r in rows}
+    return [{"bucket": b, "count": count_map.get(b, 0)} for b in BUCKETS]
 
 
 # ── 시간별 집계 (날짜 범위) ──────────────────────────────────────
@@ -58,17 +111,12 @@ def stats_hourly_range(start_date: str = Query(default=None), end_date: str = Qu
         start_date = end_date
     with get_conn() as conn:
         rows = conn.execute(
-            """
-            SELECT strftime('%H', datetime(created_date, '+9 hours')) AS hour,
-                   COUNT(*) AS count
-            FROM issues
-            WHERE date(datetime(created_date, '+9 hours')) BETWEEN ? AND ?
-            GROUP BY hour ORDER BY hour
-            """,
+            f"SELECT {BUCKET_SQL}, COUNT(*) AS count FROM issues "
+            "WHERE date(datetime(created_date, '+9 hours')) BETWEEN ? AND ? GROUP BY bucket",
             (start_date, end_date),
         ).fetchall()
-    count_map = {r["hour"]: r["count"] for r in rows}
-    return [{"hour": f"{h:02d}", "count": count_map.get(f"{h:02d}", 0)} for h in range(24)]
+    count_map = {r["bucket"]: r["count"] for r in rows}
+    return [{"bucket": b, "count": count_map.get(b, 0)} for b in BUCKETS]
 
 
 # ── 일별 (주별/월별 뷰에서 꺾은선용) ────────────────────────────
@@ -97,6 +145,7 @@ def stats_category(
     period: str = "day",
     start_date: str = Query(default=None),
     end_date: str = Query(default=None),
+    bucket: str = Query(default=None),
 ):
     if start_date and end_date:
         col = "date(datetime(created_date, '+9 hours'))"
@@ -105,6 +154,10 @@ def stats_category(
         if not target_date:
             target_date = str(date.today())
         where, params = _period_where(target_date, period)
+    if bucket:
+        bw, bp = _bucket_where(bucket)
+        where += f" AND {bw}"
+        params.extend(bp)
     with get_conn() as conn:
         rows = conn.execute(
             f"""
@@ -130,6 +183,7 @@ def list_issues(
     unclassified: bool = False,
     limit: int = 200,
     offset: int = 0,
+    bucket: str = Query(default=None),
 ):
     if start_date and end_date:
         col = "date(datetime(created_date, '+9 hours'))"
@@ -138,6 +192,10 @@ def list_issues(
         if not target_date:
             target_date = str(date.today())
         where, params = _period_where(target_date, period)
+    if bucket:
+        bw, bp = _bucket_where(bucket)
+        where += f" AND {bw}"
+        params.extend(bp)
     if unclassified:
         where += " AND new_category_main IS NULL"
     elif category_main:
@@ -161,7 +219,7 @@ def list_issues(
     return {"total": total, "items": [dict(r) for r in rows]}
 
 
-# ── 주별 집계 (최근 6주) ─────────────────────────────────────
+# ── 주별 집계 (최근 1달, 월요일 기준) ────────────────────────
 @app.get("/api/stats/weekly")
 def stats_weekly():
     with get_conn() as conn:
@@ -174,7 +232,7 @@ def stats_weekly():
                 ) AS week_start,
                 COUNT(*) AS count
             FROM issues
-            WHERE date(datetime(created_date, '+9 hours')) >= date(datetime('now', '+9 hours'), '-41 days')
+            WHERE date(datetime(created_date, '+9 hours')) >= date(datetime('now', '+9 hours'), '-30 days')
             GROUP BY week_start
             ORDER BY week_start
             """
@@ -197,6 +255,31 @@ def stats_monthly():
             """
         ).fetchall()
     return [{"month": r["month"], "count": r["count"]} for r in rows]
+
+
+# ── 인사이트: 캐시 조회 ──────────────────────────────────────
+@app.get("/api/insights/wings_tickets")
+def insights_wings_tickets():
+    row = _read_cache("wings_tickets")
+    if not row:
+        return {"data": [], "updated_at": None}
+    return {"data": json.loads(row["data"]), "updated_at": row["updated_at"]}
+
+
+@app.get("/api/insights/repeat_parents")
+def insights_repeat_parents():
+    row = _read_cache("repeat_parents")
+    if not row:
+        return {"data": [], "updated_at": None}
+    return {"data": json.loads(row["data"]), "updated_at": row["updated_at"]}
+
+
+@app.post("/api/insights/refresh")
+async def insights_refresh():
+    end = str(date.today())
+    start = str(date.today() - timedelta(days=30))
+    _save_insights_cache(compute_wings_tickets(start, end), compute_repeat_parents(start, end))
+    return {"status": "ok"}
 
 
 # ── 미분류 일괄 재분류 ───────────────────────────────────────
