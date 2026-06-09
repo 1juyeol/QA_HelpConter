@@ -27,7 +27,7 @@
     border-radius: 20px;
   }
 
-  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+  .container { max-width: 1600px; margin: 0 auto; padding: 24px 20px; }
 
   /* Toolbar */
   .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -104,7 +104,7 @@
   .chart-card h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
   canvas { max-height: 240px; }
 
-  /* Category / Detail */
+  /* Category panel */
   .section-card {
     background: #fff;
     border-radius: 12px;
@@ -114,10 +114,98 @@
   }
   .section-card h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #1e293b; }
 
+  /* Split layout */
+  .cat-layout { display: flex; gap: 0; min-height: 300px; }
+
+  .cat-tree {
+    width: 20%;
+    flex-shrink: 0;
+    padding-right: 20px;
+    border-right: 1px solid #e2e8f0;
+    overflow-y: auto;
+    max-height: 560px;
+  }
+  .cat-main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px 6px;
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 3px;
+  }
+  .cat-main-header:first-child { margin-top: 0; }
+  .cat-main-header .main-count {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+  }
+  .cat-sub-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px 7px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 1px;
+    transition: background .1s;
+  }
+  .cat-sub-item:hover { background: #f8fafc; }
+  .cat-sub-item.active { background: #eff6ff; }
+  .sub-item-name { font-size: 13px; color: #374151; flex: 1; }
+  .cat-sub-item.active .sub-item-name { color: #1a56db; font-weight: 600; }
+  .sub-item-count {
+    display: inline-block;
+    background: #f1f5f9;
+    color: #64748b;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-weight: 600;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .cat-sub-item.active .sub-item-count {
+    background: #dbeafe;
+    color: #1a56db;
+  }
+
+  /* Memo panel (right side) */
+  .cat-memo-panel {
+    flex: 1;
+    padding-left: 24px;
+    min-width: 0;
+  }
+  .memo-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 200px;
+    color: #cbd5e1;
+    font-size: 13px;
+  }
+  .memo-header {
+    margin-bottom: 14px;
+  }
+  .memo-header .memo-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 4px;
+  }
+  .memo-header .memo-count {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  /* Table */
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th {
     text-align: left;
-    padding: 10px 14px;
+    padding: 9px 12px;
     background: #f8fafc;
     border-bottom: 2px solid #e2e8f0;
     color: #64748b;
@@ -126,11 +214,8 @@
     text-transform: uppercase;
     letter-spacing: .5px;
   }
-  td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
   tr:last-child td { border-bottom: none; }
-
-  .clickable { cursor: pointer; }
-  .clickable:hover td { background: #f0f7ff; }
 
   .count-badge {
     display: inline-block;
@@ -141,28 +226,6 @@
     font-weight: 700;
     font-size: 12px;
   }
-
-  /* Progress bar */
-  .prog-wrap { display: flex; align-items: center; gap: 8px; }
-  .prog-bar-bg { flex: 1; height: 6px; background: #f1f5f9; border-radius: 99px; overflow: hidden; min-width: 60px; }
-  .prog-bar-fill { height: 100%; border-radius: 99px; background: #93c5fd; transition: width .4s; }
-  .prog-bar-fill.main { background: #1a56db; }
-  .prog-pct { font-size: 12px; color: #94a3b8; width: 38px; text-align: right; flex-shrink: 0; }
-
-  /* Detail panel */
-  #detail-panel { display: none; }
-  .back-btn {
-    background: none;
-    border: none;
-    color: #1a56db;
-    cursor: pointer;
-    font-size: 13px;
-    margin-bottom: 14px;
-    padding: 0;
-    font-weight: 500;
-  }
-  .back-btn:hover { text-decoration: underline; }
-  .detail-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #1e293b; }
 
   .loading { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
   .empty   { text-align: center; padding: 30px; color: #94a3b8; font-size: 13px; }
@@ -224,17 +287,15 @@
     <canvas id="main-chart"></canvas>
   </div>
 
-  <!-- 카테고리 집계 -->
-  <div id="category-panel" class="section-card">
+  <!-- 카테고리 + 메모 패널 -->
+  <div class="section-card">
     <h2>카테고리별 건수</h2>
-    <div id="category-body"><div class="loading">불러오는 중...</div></div>
-  </div>
-
-  <!-- 상세 드릴다운 -->
-  <div id="detail-panel" class="section-card">
-    <button class="back-btn" id="back-btn">← 카테고리 목록으로</button>
-    <div class="detail-title" id="detail-title"></div>
-    <div id="detail-body"><div class="loading">불러오는 중...</div></div>
+    <div class="cat-layout">
+      <div class="cat-tree" id="cat-tree"><div class="loading">불러오는 중...</div></div>
+      <div class="cat-memo-panel" id="cat-memo-panel">
+        <div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -248,6 +309,8 @@ let state = {
   endDate: todayStr(),
 };
 let chartInstance = null;
+let _catData = null;
+let _selectedSub = null; // { main, sub }
 
 // ── 초기화 ────────────────────────────────────────────────────
 document.getElementById('header-date').textContent = new Date().toLocaleDateString('ko-KR', {
@@ -273,14 +336,15 @@ document.getElementById('date-input').addEventListener('change', e => { state.da
 document.getElementById('start-date-input').addEventListener('change', e => { state.startDate = e.target.value; loadAll(); });
 document.getElementById('end-date-input').addEventListener('change', e => { state.endDate = e.target.value; loadAll(); });
 document.getElementById('refresh-btn').addEventListener('click', loadAll);
-document.getElementById('back-btn').addEventListener('click', showCategoryPanel);
 
 loadAll();
 loadLastCollected();
 
 // ── 전체 로드 ─────────────────────────────────────────────────
 async function loadAll() {
-  showCategoryPanel();
+  _selectedSub = null;
+  document.getElementById('cat-memo-panel').innerHTML =
+    '<div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>';
   await Promise.all([loadChart(), loadCategory()]);
 }
 
@@ -357,19 +421,18 @@ async function loadChart() {
   });
 }
 
-// ── 카테고리 집계 ─────────────────────────────────────────────
+// ── 카테고리 트리 ─────────────────────────────────────────────
 async function loadCategory() {
-  const { period, date, startDate, endDate } = state;
   const { start: catStart, end: catEnd } = getPeriodRange();
-  const url = `/api/stats/category?start_date=${catStart}&end_date=${catEnd}`;
-  const rows = await api(url);
+  const rows = await api(`/api/stats/category?start_date=${catStart}&end_date=${catEnd}`);
 
   const grouped = {};
   let totalAll = 0;
   rows.forEach(r => {
-    if (!grouped[r.new_category_main]) grouped[r.new_category_main] = { total: 0, subs: [] };
-    grouped[r.new_category_main].total += r.count;
-    grouped[r.new_category_main].subs.push(r);
+    const key = r.new_category_main;
+    if (!grouped[key]) grouped[key] = { total: 0, subs: [] };
+    grouped[key].total += r.count;
+    grouped[key].subs.push(r);
     totalAll += r.count;
   });
 
@@ -383,7 +446,8 @@ async function loadCategory() {
     return ai - bi;
   });
 
-  // KPI 카드 업데이트
+  _catData = { grouped, sorted, totalAll };
+
   const validSorted = sorted.filter(([name]) => name && name !== 'null');
   if (validSorted.length) {
     const [topName, topData] = validSorted[0];
@@ -396,114 +460,79 @@ async function loadCategory() {
     document.getElementById('card-cat-count').textContent = '0';
   }
 
-  const body = document.getElementById('category-body');
-  if (!rows.length) { body.innerHTML = '<div class="empty">데이터 없음</div>'; return; }
+  const tree = document.getElementById('cat-tree');
+  if (!rows.length) { tree.innerHTML = '<div class="empty">데이터 없음</div>'; return; }
 
-  const maxTotal = sorted[0]?.[1].total || 1;
-
-  let html = `
-    <table>
-      <thead><tr>
-        <th>대분류</th>
-        <th>소분류</th>
-        <th style="text-align:right">건수</th>
-        <th style="min-width:140px">비율</th>
-      </tr></thead>
-      <tbody>
-  `;
-
+  let html = '';
   sorted.forEach(([main, g]) => {
-    const pct      = totalAll ? ((g.total / totalAll) * 100).toFixed(1) : 0;
-    const barW     = ((g.total / maxTotal) * 100).toFixed(1);
     const mainLabel = (!main || main === 'null') ? '미분류' : main;
-    html += `
-      <tr class="clickable" onclick="loadDetail('${esc(main)}', null)">
-        <td><strong>${esc(mainLabel)}</strong></td>
-        <td style="color:#94a3b8;font-size:12px">전체</td>
-        <td style="text-align:right"><span class="count-badge">${g.total.toLocaleString()}</span></td>
-        <td>
-          <div class="prog-wrap">
-            <div class="prog-bar-bg"><div class="prog-bar-fill main" style="width:${barW}%"></div></div>
-            <span class="prog-pct">${pct}%</span>
-          </div>
-        </td>
-      </tr>
-    `;
-    g.subs.sort((a, b) => b.count - a.count).forEach(sub => {
-      const sp  = totalAll ? ((sub.count / totalAll) * 100).toFixed(1) : 0;
-      const sbW = ((sub.count / maxTotal) * 100).toFixed(1);
-      html += `
-        <tr class="clickable" onclick="loadDetail('${esc(main)}', '${esc(sub.new_category_sub)}')">
-          <td style="color:#cbd5e1;padding-left:28px;font-size:12px">└</td>
-          <td>${esc(sub.new_category_sub)}</td>
-          <td style="text-align:right"><span class="count-badge">${sub.count.toLocaleString()}</span></td>
-          <td>
-            <div class="prog-wrap">
-              <div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${sbW}%"></div></div>
-              <span class="prog-pct">${sp}%</span>
-            </div>
-          </td>
-        </tr>
-      `;
+    html += `<div class="cat-main-header">
+      <span>${esc(mainLabel)}</span>
+      <span class="main-count">${g.total.toLocaleString()}</span>
+    </div>`;
+    [...g.subs].sort((a, b) => b.count - a.count).forEach(sub => {
+      const subKey = sub.new_category_sub;
+      const isActive = _selectedSub && _selectedSub.main === main && _selectedSub.sub === subKey;
+      const subLabel = (!subKey || subKey === 'null') ? '미분류' : subKey;
+      html += `<div class="cat-sub-item${isActive ? ' active' : ''}"
+        data-main="${esc(main)}" data-sub="${esc(subKey)}"
+        onclick="selectSub('${esc(main)}','${esc(subKey)}')">
+        <span class="sub-item-name">${esc(subLabel)}</span>
+        <span class="sub-item-count">${sub.count.toLocaleString()}</span>
+      </div>`;
     });
   });
-
-  html += '</tbody></table>';
-  body.innerHTML = html;
+  tree.innerHTML = html;
 }
 
-// ── 상세 드릴다운 ─────────────────────────────────────────────
-async function loadDetail(categoryMain, categorySub) {
-  document.getElementById('category-panel').style.display = 'none';
-  const panel = document.getElementById('detail-panel');
-  panel.style.display = 'block';
+// ── 소분류 선택 → 메모 로드 ──────────────────────────────────
+async function selectSub(mainKey, subKey) {
+  _selectedSub = { main: mainKey, sub: subKey };
 
-  const title = categorySub ? `${categoryMain} > ${categorySub}` : categoryMain;
-  document.getElementById('detail-title').textContent = title;
-  document.getElementById('detail-body').innerHTML = '<div class="loading">불러오는 중...</div>';
+  document.querySelectorAll('.cat-sub-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.main === mainKey && el.dataset.sub === subKey);
+  });
 
-  const { period, date, startDate, endDate } = state;
-  const { start: issStart, end: issEnd } = getPeriodRange();
-  let url = `/api/issues?start_date=${issStart}&end_date=${issEnd}&category_main=${encodeURIComponent(categoryMain)}`;
-  if (categorySub) url += `&category_sub=${encodeURIComponent(categorySub)}`;
+  const panel = document.getElementById('cat-memo-panel');
+  panel.innerHTML = '<div class="loading">불러오는 중...</div>';
 
+  const { start, end } = getPeriodRange();
+  const url = (!mainKey || mainKey === 'null')
+    ? `/api/issues?start_date=${start}&end_date=${end}&unclassified=1`
+    : `/api/issues?start_date=${start}&end_date=${end}&category_main=${encodeURIComponent(mainKey)}&category_sub=${encodeURIComponent(subKey)}`;
   const result = await api(url);
   const items = result.items || [];
 
+  const mainLabel = (!mainKey || mainKey === 'null') ? '미분류' : mainKey;
+  let html = `<div class="memo-header">
+    <div class="memo-title">${esc(mainLabel)} &rsaquo; ${esc(subKey)}</div>
+    <div class="memo-count">총 ${result.total.toLocaleString()}건${result.total > items.length ? ` (상위 ${items.length}건 표시)` : ''}</div>
+  </div>`;
+
   if (!items.length) {
-    document.getElementById('detail-body').innerHTML = '<div class="empty">데이터 없음</div>';
-    return;
+    html += '<div class="empty">데이터 없음</div>';
+  } else {
+    html += `<table>
+      <thead><tr>
+        <th style="width:90px">학생번호</th>
+        <th style="width:90px">학부모번호</th>
+        <th>상담 메모</th>
+        <th style="width:130px">접수 시각</th>
+      </tr></thead>
+      <tbody>`;
+    items.forEach(r => {
+      const memo = (r.call_memo || '').replace(/\n/g, '<br>');
+      html += `<tr>
+        <td style="color:#64748b;font-size:12px">${r.student_id || '—'}</td>
+        <td style="color:#64748b;font-size:12px">${r.parent_id || '—'}</td>
+        <td style="color:#374151;font-size:13px">${memo || '<span style="color:#cbd5e1">없음</span>'}</td>
+        <td style="white-space:nowrap;color:#64748b;font-size:12px">${r.created_date ? r.created_date.slice(0,16) : '—'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
   }
 
-  let html = `
-    <div style="color:#64748b;font-size:13px;margin-bottom:12px">총 <strong>${result.total.toLocaleString()}</strong>건</div>
-    <table>
-      <thead><tr>
-        <th>접수 시각</th>
-        <th>대분류</th>
-        <th>소분류</th>
-        <th>상담 메모</th>
-        <th style="text-align:right">이슈 ID</th>
-      </tr></thead>
-      <tbody>
-  `;
-  items.forEach(r => {
-    const memo = (r.call_memo || '').replace(/\n/g, '<br>');
-    html += `
-      <tr>
-        <td style="white-space:nowrap;color:#64748b">${r.created_date ? r.created_date.slice(0,16) : '—'}</td>
-        <td>${esc(r.new_category_main || '—')}</td>
-        <td>${esc(r.new_category_sub || '—')}</td>
-        <td style="font-size:13px;color:#374151;max-width:400px">${memo || '<span style="color:#cbd5e1">없음</span>'}</td>
-        <td style="text-align:right;color:#94a3b8;font-size:12px">${r.id}</td>
-      </tr>
-    `;
-  });
-  html += '</tbody></table>';
-  if (result.total > items.length) {
-    html += `<div style="text-align:center;padding:12px;color:#94a3b8;font-size:12px">상위 ${items.length}건만 표시 (전체 ${result.total.toLocaleString()}건)</div>`;
-  }
-  document.getElementById('detail-body').innerHTML = html;
+  panel.innerHTML = html;
 }
 
 function getPeriodRange() {
@@ -522,11 +551,6 @@ function getPeriodRange() {
     return { start: d.toISOString().slice(0, 10), end: today };
   }
   return { start: today, end: today };
-}
-
-function showCategoryPanel() {
-  document.getElementById('category-panel').style.display = 'block';
-  document.getElementById('detail-panel').style.display = 'none';
 }
 
 // ── 마지막 수집 시각 ──────────────────────────────────────────
@@ -553,7 +577,7 @@ function todayStr() {
 }
 
 function esc(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
 }
 </script>
 </body>

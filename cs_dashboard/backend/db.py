@@ -24,10 +24,11 @@ def init_db():
                 call_memo TEXT
             )
         """)
-        try:
-            conn.execute("ALTER TABLE issues ADD COLUMN call_memo TEXT")
-        except Exception:
-            pass
+        for col in ["call_memo TEXT", "student_id INTEGER", "parent_id INTEGER"]:
+            try:
+                conn.execute(f"ALTER TABLE issues ADD COLUMN {col}")
+            except Exception:
+                pass
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_date ON issues(created_date)")
         conn.execute("""
             CREATE TABLE IF NOT EXISTS collection_log (

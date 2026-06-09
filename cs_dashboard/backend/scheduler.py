@@ -44,11 +44,11 @@ async def collect_date(target: date):
                 INSERT OR REPLACE INTO issues
                     (id, created_date, complete_date, category_tag,
                      category_main, category_sub, category_full, call_memo,
-                     new_category_main, new_category_sub)
+                     new_category_main, new_category_sub, student_id, parent_id)
                 VALUES
                     (:id, :created_date, :complete_date, :category_tag,
                      :category_main, :category_sub, :category_full, :call_memo,
-                     :new_category_main, :new_category_sub)
+                     :new_category_main, :new_category_sub, :student_id, :parent_id)
                 """,
                 issues,
             )
