@@ -210,7 +210,7 @@ def list_issues(
             f"""
             SELECT id, datetime(created_date, '+9 hours') AS created_date,
                    new_category_main, new_category_sub, call_memo,
-                   student_id, parent_id
+                   student_id, CASE WHEN parent_id = 92 THEN NULL ELSE parent_id END AS parent_id
             FROM issues WHERE {where}
             ORDER BY created_date DESC LIMIT ? OFFSET ?
             """,
