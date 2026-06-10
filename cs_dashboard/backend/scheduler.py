@@ -1,4 +1,5 @@
 import getpass
+import json
 from datetime import date, datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import pytz
@@ -6,6 +7,7 @@ import pytz
 from helpdesk import HelpdeskClient
 from db import get_conn
 from classifier import classify
+from insights import compute_wings_tickets, compute_repeat_parents
 
 KST = pytz.timezone("Asia/Seoul")
 
@@ -80,8 +82,25 @@ async def collect_today():
         await collect_date(yesterday)
 
 
+async def update_insights_cache():
+    end = str(date.today())
+    start = str(date.today() - timedelta(days=30))
+    wings = compute_wings_tickets(start, end)
+    parents = compute_repeat_parents(start, end)
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+    with get_conn() as conn:
+        conn.execute("INSERT OR REPLACE INTO insights_cache VALUES (?, ?, ?)",
+                     ("wings_tickets", json.dumps(wings, ensure_ascii=False), now))
+        conn.execute("INSERT OR REPLACE INTO insights_cache VALUES (?, ?, ?)",
+                     ("repeat_parents", json.dumps(parents, ensure_ascii=False), now))
+        conn.commit()
+    print(f"[{now}] insights cache updated")
+
+
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=KST)
-    scheduler.add_job(collect_today, "cron", minute=0)  # 매 정시
+    scheduler.add_job(collect_today, "cron", minute=0)              # 매 정시 수집
+    scheduler.add_job(collect_today, "cron", hour="9-20", minute=30) # 09:30~20:30 30분 단위
+    scheduler.add_job(update_insights_cache, "cron", hour=0, minute=0)  # 자정 인사이트 캐시
     scheduler.start()
     return scheduler
