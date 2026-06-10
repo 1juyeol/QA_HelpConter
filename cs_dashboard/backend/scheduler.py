@@ -38,6 +38,8 @@ async def collect_date(target: date):
         count = len(issues)
         for issue in issues:
             main, sub = classify(issue.get("call_memo", ""))
+            if main is None:
+                main, sub = "기타", "내부 이력"
             issue["new_category_main"] = main
             issue["new_category_sub"] = sub
         with get_conn() as conn:
