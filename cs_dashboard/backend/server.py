@@ -300,7 +300,7 @@ async def _backfill_ids():
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT DISTINCT date(created_date) AS d FROM issues "
-            "WHERE student_id IS NULL ORDER BY d"
+            "WHERE student_id IS NULL OR parent_id = 92 ORDER BY d"
         ).fetchall()
     dates = [r["d"] for r in rows]
     if not dates:

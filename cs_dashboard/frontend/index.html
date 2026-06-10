@@ -339,7 +339,7 @@
 
 <header>
   <div class="header-left">
-    <h1>공감센터 CS 대시보드</h1>
+    <h1 style="cursor:pointer" onclick="location.reload()">공감센터 CS 대시보드</h1>
     <p id="header-date"></p>
   </div>
   <span id="last-collected">마지막 수집: —</span>
@@ -394,14 +394,14 @@
             <div class="sub"   id="card-sub">—</div>
           </div>
           <div class="card green">
-            <div class="label">최다 문의 유형</div>
-            <div class="value" id="card-top-cat" style="font-size:18px;line-height:1.4">—</div>
-            <div class="sub"   id="card-top-cnt">—</div>
+            <div class="label" id="card-cmp-label">전일 대비</div>
+            <div class="value" id="card-cmp-value">—</div>
+            <div class="sub"   id="card-cmp-sub">—</div>
           </div>
           <div class="card amber">
-            <div class="label">분류 항목 수</div>
-            <div class="value" id="card-cat-count">—</div>
-            <div class="sub">대분류 기준</div>
+            <div class="label">최다 문의 시간대</div>
+            <div class="value" id="card-peak-bucket" style="font-size:22px">—</div>
+            <div class="sub"   id="card-peak-cnt">—</div>
           </div>
         </div>
 
@@ -557,7 +557,7 @@ async function loadAll() {
   document.getElementById('cat-memo-panel').innerHTML =
     '<div class="memo-placeholder">소분류를 선택하면 상담 메모가 표시됩니다</div>';
   renderCategoryFilter();
-  await Promise.all([loadChart(), loadCategory()]);
+  await Promise.all([loadChart(), loadCategory(), loadPeakBucket()]);
 }
 
 // ── 차트 ─────────────────────────────────────────────────────
@@ -602,6 +602,36 @@ async function loadChart() {
   document.getElementById('card-label').textContent = labelMap[period];
   document.getElementById('card-total').textContent = total.toLocaleString() + '건';
   document.getElementById('card-sub').textContent = subMap[period];
+
+  // 전일/전주/전월 대비
+  const cmpLabelMap = { day: '전일 대비', week: '전주 대비', month: '전월 대비', hourly_range: '전기간 대비' };
+  document.getElementById('card-cmp-label').textContent = cmpLabelMap[period];
+  if (period === 'hourly_range') {
+    const days = Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 86400000) + 1);
+    const prevEndD = new Date(startDate + 'T00:00:00'); prevEndD.setDate(prevEndD.getDate() - 1);
+    const prevStartD = new Date(prevEndD); prevStartD.setDate(prevStartD.getDate() - days + 1);
+    const prevEnd2 = prevEndD.toISOString().slice(0, 10);
+    const prevStart2 = prevStartD.toISOString().slice(0, 10);
+    const prevRows = await api(`/api/stats/hourly_range?start_date=${prevStart2}&end_date=${prevEnd2}`);
+    const prevTotal = prevRows.reduce((s, r) => s + r.count, 0);
+    const diff = total - prevTotal;
+    const sign = diff >= 0 ? '+' : '';
+    const pct = prevTotal > 0 ? ` (${sign}${Math.round(diff / prevTotal * 100)}%)` : '';
+    document.getElementById('card-cmp-label').textContent = days === 1 ? '전일 대비' : `전${days}일 대비`;
+    document.getElementById('card-cmp-value').textContent = sign + diff.toLocaleString() + '건';
+    document.getElementById('card-cmp-sub').textContent = `현재 ${total.toLocaleString()}건${pct}`;
+  } else if (data.length >= 2) {
+    const curr = data[data.length - 1];
+    const prev = data[data.length - 2];
+    const diff = curr - prev;
+    const sign = diff >= 0 ? '+' : '';
+    const pct = prev > 0 ? ` (${sign}${Math.round(diff / prev * 100)}%)` : '';
+    document.getElementById('card-cmp-value').textContent = sign + diff.toLocaleString() + '건';
+    document.getElementById('card-cmp-sub').textContent = `현재 ${curr.toLocaleString()}건${pct}`;
+  } else {
+    document.getElementById('card-cmp-value').textContent = '—';
+    document.getElementById('card-cmp-sub').textContent = '—';
+  }
 
   const ctx = document.getElementById('main-chart').getContext('2d');
   if (chartInstance) chartInstance.destroy();
@@ -699,16 +729,6 @@ async function loadCategory() {
   _catData = { grouped, sorted, totalAll };
 
   const validSorted = sorted.filter(([name]) => name && name !== 'null');
-  if (validSorted.length) {
-    const [topName, topData] = validSorted[0];
-    document.getElementById('card-top-cat').textContent = topName;
-    document.getElementById('card-top-cnt').textContent = topData.total.toLocaleString() + '건';
-    document.getElementById('card-cat-count').textContent = validSorted.length;
-  } else {
-    document.getElementById('card-top-cat').textContent = '—';
-    document.getElementById('card-top-cnt').textContent = '—';
-    document.getElementById('card-cat-count').textContent = '0';
-  }
 
   const tree = document.getElementById('cat-tree');
   if (!rows.length) { tree.innerHTML = '<div class="empty">데이터 없음</div>'; return; }
@@ -1076,6 +1096,14 @@ function getPeriodRange() {
     return { start: d.toISOString().slice(0, 10), end: today };
   }
   return { start: today, end: today };
+}
+
+async function loadPeakBucket() {
+  const { start, end } = getPeriodRange();
+  const rows = await api(`/api/stats/hourly_range?start_date=${start}&end_date=${end}`);
+  const peak = rows.reduce((max, r) => r.count > max.count ? r : max, { count: 0, bucket: '—' });
+  document.getElementById('card-peak-bucket').textContent = peak.bucket;
+  document.getElementById('card-peak-cnt').textContent = peak.count > 0 ? peak.count.toLocaleString() + '건' : '—';
 }
 
 async function loadLastCollected() {
