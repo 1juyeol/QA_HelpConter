@@ -7,10 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import get_conn, init_db
-from scheduler import start_scheduler, collect_today, prompt_credentials, _get_client
-from reclassify import run as reclassify_run
+from scheduler import start_scheduler, collect_today, prompt_credentials
 
-HELPDESK_ISSUES_URL = "https://help-desk-api.wink.co.kr/issue/issues/"
 
 app = FastAPI()
 
@@ -85,21 +83,6 @@ def _bucket_where(bucket: str):
     if mm == '00':
         return f"({h} = {hh} AND {m} < 30)", []
     return f"({h} = {hh} AND {m} >= 30)", []
-
-
-# ── 시간대별 (일별 뷰에서 꺾은선용) ──────────────────────────────
-@app.get("/api/stats/hourly")
-def stats_hourly(target_date: str = Query(default=None)):
-    if not target_date:
-        target_date = str(date.today())
-    with get_conn() as conn:
-        rows = conn.execute(
-            f"SELECT {BUCKET_SQL}, COUNT(*) AS count FROM issues "
-            "WHERE date(datetime(created_date, '+9 hours')) = ? GROUP BY bucket",
-            (target_date,),
-        ).fetchall()
-    count_map = {r["bucket"]: r["count"] for r in rows}
-    return [{"bucket": b, "count": count_map.get(b, 0)} for b in BUCKETS]
 
 
 # ── 시간별 집계 (날짜 범위) ──────────────────────────────────────
@@ -280,68 +263,6 @@ async def insights_refresh():
     start = str(date.today() - timedelta(days=30))
     _save_insights_cache(compute_wings_tickets(start, end), compute_repeat_parents(start, end))
     return {"status": "ok"}
-
-
-# ── 미분류 일괄 재분류 ───────────────────────────────────────
-@app.post("/api/admin/reclassify")
-def admin_reclassify():
-    reclassify_run()
-    return {"status": "ok"}
-
-
-# ── 학생/학부모 번호 backfill ────────────────────────────────
-@app.post("/api/admin/backfill_ids")
-async def admin_backfill_ids():
-    asyncio.create_task(_backfill_ids())
-    return {"status": "started"}
-
-
-async def _backfill_ids():
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT DISTINCT date(created_date) AS d FROM issues "
-            "WHERE student_id IS NULL OR parent_id = 92 ORDER BY d"
-        ).fetchall()
-    dates = [r["d"] for r in rows]
-    if not dates:
-        print("[backfill] 보완할 데이터 없음")
-        return
-
-    print(f"[backfill] 대상 {len(dates)}일 ({dates[0]} ~ {dates[-1]})")
-    client = None
-    try:
-        client = await _get_client()
-        for d_str in dates:
-            offset = 0
-            total = 0
-            while True:
-                resp = await client.client.get(
-                    HELPDESK_ISSUES_URL,
-                    params={
-                        "model_type": 1009, "is_complete": "true",
-                        "limit": 100, "offset": offset,
-                        "created_date": f"{d_str},{d_str}",
-                        "search": "", "order_by": "-dpo,-id",
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                updates = [(r.get("student"), r.get("parent"), r["id"]) for r in data.get("results", [])]
-                with get_conn() as conn:
-                    conn.executemany(
-                        "UPDATE issues SET student_id=?, parent_id=? WHERE id=?", updates
-                    )
-                    conn.commit()
-                total += len(updates)
-                if not data.get("next"):
-                    break
-                offset += 100
-                await asyncio.sleep(5)
-            print(f"[backfill] {d_str} 완료 — {total}건")
-    finally:
-        if client:
-            await client.close()
-    print("[backfill] 전체 완료")
 
 
 # ── 마지막 수집 시각 ──────────────────────────────────────────
