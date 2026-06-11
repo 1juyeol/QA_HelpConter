@@ -1,7 +1,9 @@
+// 반복 Wings 티켓 인사이트 페이지. 동일 Wings 티켓 번호가 여러 CS 건에서 언급된 목록을 테이블로 표시한다.
+// 마운트 시 /api/insights/wings_tickets를 fetch하고, 새로고침 버튼은 POST /api/insights/refresh → 재조회 순서로 동작한다.
+// 최초 접수일부터 7일 이상 경과한 티켓은 '처리 지연' 배지를 표시하며, 각 행을 클릭하면 CS 메모 이력을 펼쳐 볼 수 있다.
+// 이 컴포넌트 내부에서만 상태를 관리하며 다른 페이지와 상태를 공유하지 않는다 (정책 8).
 import { Fragment, useEffect, useState } from 'react'
 import { api, type InsightWings } from '../../api/client'
-
-// 반복 Wings 티켓 목록. 독립적으로 fetch하며 다른 페이지와 상태를 공유하지 않는다.
 export default function WingsTickets() {
   const [rows, setRows] = useState<InsightWings[]>([])
   const [updatedAt, setUpdatedAt] = useState('')

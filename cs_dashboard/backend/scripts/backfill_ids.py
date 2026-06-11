@@ -1,10 +1,14 @@
 """student_id, parent_id 누락 데이터 일괄 보완."""
 import asyncio
 import getpass
+import sys
 from datetime import date
+from pathlib import Path
 
-from helpdesk import HelpdeskClient
-from db import get_conn
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from features.collection.client import HelpdeskClient
+from core.db import get_conn
 
 DELAY = 5  # 페이지 호출 간 딜레이(초)
 

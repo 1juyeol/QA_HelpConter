@@ -1,3 +1,7 @@
+# Helpdesk API HTTP 클라이언트. 쿠키 기반 세션 인증(XSRF-TOKEN + sessionid)으로 로그인한 뒤
+# /issue/issues/ 엔드포인트를 100건씩 페이지네이션하며 완료 이슈 전체를 수집한다.
+# 사용 흐름: HelpdeskClient.login(id, pw) → 인스턴스 생성 → fetch_issues(date) → 정규화 dict 목록 반환.
+# 이 클라이언트를 직접 호출하지 말고 scheduler.py(자동 수집) 또는 scripts/backfill_ids.py(보완)를 통해 사용한다.
 import httpx
 from datetime import date
 

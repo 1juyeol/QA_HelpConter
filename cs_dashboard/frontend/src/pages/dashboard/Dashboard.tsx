@@ -1,5 +1,8 @@
-// 메인 대시보드. 시간대별·일별·주별·월별 탭 전환, KPI 카드(동시간대 대비·평균 대비), Chart.js 차트,
-// 카테고리 드릴다운(대분류→소분류→메모), 피크 시간대 표시, :00/:30 자동 리로드를 담당한다.
+// 메인 대시보드 페이지. 이 파일 하나에 대시보드의 모든 UI와 상태 관리가 집중되어 있다.
+// 주요 기능: 시간대별·일별·주별·월별 탭 전환 / KPI 카드(동시간대 대비·평균 대비) /
+// Chart.js 차트(Bar·Line) / 카테고리 드릴다운(대분류→소분류→메모 목록) /
+// 피크 시간대 하이라이트 / 정시·30분 자동 리로드.
+// 데이터 흐름: api/client.ts 함수 호출 → 상태 업데이트 → Chart.js 재렌더링 → DOM 반영.
 import { useEffect, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
 import { api, type BucketRow, type CategoryRow, type DailyRow, type Issue, type MonthlyRow, type WeeklyRow } from '../../api/client'

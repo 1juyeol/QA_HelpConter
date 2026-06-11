@@ -1,6 +1,11 @@
 """기존 미분류(new_category_main IS NULL) 데이터 일괄 재분류."""
-from db import get_conn
-from classifier import classify
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from core.db import get_conn
+from features.issues.classifier import classify
 
 
 def run():
