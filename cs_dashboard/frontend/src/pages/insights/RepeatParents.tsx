@@ -1,9 +1,11 @@
+// 학부모 반복 인입 인사이트 페이지. 30일 내 동일 학부모가 2회 이상 CS 인입한 목록을 테이블로 표시한다.
+// 카테고리 필터 버튼으로 특정 분류만 필터링할 수 있으며, 각 행 클릭 시 전체 메모 이력을 펼쳐 볼 수 있다.
+// 새로고침 버튼은 POST /api/insights/refresh → 재조회 순서로 동작한다.
+// 이 컴포넌트 내부에서만 상태를 관리하며 다른 페이지와 상태를 공유하지 않는다 (정책 8).
 import { Fragment, useEffect, useState } from 'react'
 import { api, type InsightParent } from '../../api/client'
 
 const CATEGORY_ORDER = ['네트워크·앱 오류', '기기·하드웨어 오류', '미납·결제', '해지·유지 상담', '체험 관련', '교재·물류·배송', '계정·서비스', '기타']
-
-// 학부모 반복 인입 목록. 독립적으로 fetch하며 다른 페이지와 상태를 공유하지 않는다.
 export default function RepeatParents() {
   const [data, setData] = useState<InsightParent[]>([])
   const [updatedAt, setUpdatedAt] = useState('')

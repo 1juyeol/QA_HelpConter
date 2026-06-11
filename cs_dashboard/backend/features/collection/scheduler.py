@@ -1,13 +1,18 @@
+# APScheduler 기반 자동 수집 스케줄러. 서버 시작 시 start_scheduler()를 한 번 호출한다.
+# 수집 주기: 매 정시(xx:00) 오늘치 수집 / 09:30~20:30 매 30분 단위 오늘치 재수집.
+# 자정(00:00): 어제 23시대 누락 데이터 보정 + 인사이트 캐시 갱신.
+# 자격증명(_username, _password)은 서버 시작 시 prompt_credentials()로 입력받아 전역 변수에 보관한다.
+# collect_date()는 성공·실패 모두 collection_log 테이블에 기록해 수집 이력을 추적한다.
 import getpass
-import json
 from datetime import date, datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import pytz
 
-from helpdesk import HelpdeskClient
-from db import get_conn
-from classifier import classify
-from insights import compute_wings_tickets, compute_repeat_parents
+from features.collection.client import HelpdeskClient
+from core.db import get_conn
+from features.issues.classifier import classify
+from features.insights.compute import compute_wings_tickets, compute_repeat_parents
+from features.insights.cache import _save_insights_cache
 
 KST = pytz.timezone("Asia/Seoul")
 
@@ -78,10 +83,11 @@ async def collect_today():
     today = date.today()
     await collect_date(today)
 
-    # 자정(00:00)에는 어제 23시대 누락분 보정
+    # 자정(00:00)에는 어제 23시대 누락분 보정 후 인사이트 캐시 갱신
     if datetime.now(KST).hour == 0:
         yesterday = today - timedelta(days=1)
         await collect_date(yesterday)
+        await update_insights_cache()
 
 
 async def update_insights_cache():
@@ -89,20 +95,14 @@ async def update_insights_cache():
     start = str(date.today() - timedelta(days=30))
     wings = compute_wings_tickets(start, end)
     parents = compute_repeat_parents(start, end)
+    _save_insights_cache(wings, parents)
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
-    with get_conn() as conn:
-        conn.execute("INSERT OR REPLACE INTO insights_cache VALUES (?, ?, ?)",
-                     ("wings_tickets", json.dumps(wings, ensure_ascii=False), now))
-        conn.execute("INSERT OR REPLACE INTO insights_cache VALUES (?, ?, ?)",
-                     ("repeat_parents", json.dumps(parents, ensure_ascii=False), now))
-        conn.commit()
     print(f"[{now}] insights cache updated")
 
 
 def start_scheduler():
     scheduler = AsyncIOScheduler(timezone=KST)
-    scheduler.add_job(collect_today, "cron", minute=0)              # 매 정시 수집
+    scheduler.add_job(collect_today, "cron", minute=0)               # 매 정시 수집 (자정엔 어제 보정 + 캐시 갱신 포함)
     scheduler.add_job(collect_today, "cron", hour="9-20", minute=30) # 09:30~20:30 30분 단위
-    scheduler.add_job(update_insights_cache, "cron", hour=0, minute=0)  # 자정 인사이트 캐시
     scheduler.start()
     return scheduler

@@ -1,7 +1,8 @@
+// 좌측 네비게이션 사이드바. 대시보드 링크와 인사이트 서브메뉴(접기·펼치기)를 표시한다.
+// NavLink로 현재 경로를 감지해 활성 메뉴를 하이라이트한다.
+// 메뉴 열림/닫힘(insightsOpen) 로컬 상태만 관리하며 다른 상태나 API 호출은 없다.
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-
-// 사이드바 네비게이션. App.tsx 레이아웃에서 렌더링되며 라우팅만 담당한다.
 export default function Sidebar() {
   const [insightsOpen, setInsightsOpen] = useState(true)
 
