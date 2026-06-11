@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from db import get_conn, init_db
 from scheduler import start_scheduler, collect_today, prompt_credentials
@@ -202,9 +203,15 @@ def list_issues(
     return {"total": total, "items": [dict(r) for r in rows]}
 
 
-# ── 주별 집계 (최근 1달, 월요일 기준) ────────────────────────
+# ── 주별 집계 (4주, 월요일 기준) ─────────────────────────────
 @app.get("/api/stats/weekly")
-def stats_weekly():
+def stats_weekly(target_date: str = Query(default=None)):
+    if not target_date:
+        target_date = str(date.today())
+    d = date.fromisoformat(target_date)
+    monday = d - timedelta(days=d.weekday())
+    range_start = str(monday - timedelta(days=21))
+    range_end = str(monday + timedelta(days=6))
     with get_conn() as conn:
         rows = conn.execute(
             """
@@ -215,27 +222,38 @@ def stats_weekly():
                 ) AS week_start,
                 COUNT(*) AS count
             FROM issues
-            WHERE date(datetime(created_date, '+9 hours')) >= date(datetime('now', '+9 hours'), '-30 days')
+            WHERE date(datetime(created_date, '+9 hours')) BETWEEN ? AND ?
             GROUP BY week_start
             ORDER BY week_start
-            """
+            """,
+            (range_start, range_end),
         ).fetchall()
     return [{"week_start": r["week_start"], "count": r["count"]} for r in rows]
 
 
-# ── 월별 집계 (최근 3개월) ────────────────────────────────────
+# ── 월별 집계 (3개월) ─────────────────────────────────────────
 @app.get("/api/stats/monthly")
-def stats_monthly():
+def stats_monthly(target_date: str = Query(default=None)):
+    if not target_date:
+        target_date = str(date.today())
+    d = date.fromisoformat(target_date)
+    target_ym = d.strftime('%Y-%m')
+    m, y = d.month - 2, d.year
+    if m <= 0:
+        m += 12
+        y -= 1
+    start_ym = f"{y:04d}-{m:02d}"
     with get_conn() as conn:
         rows = conn.execute(
             """
             SELECT strftime('%Y-%m', datetime(created_date, '+9 hours')) AS month,
                    COUNT(*) AS count
             FROM issues
-            WHERE date(datetime(created_date, '+9 hours')) >= date(datetime('now', '+9 hours'), 'start of month', '-2 months')
+            WHERE strftime('%Y-%m', datetime(created_date, '+9 hours')) BETWEEN ? AND ?
             GROUP BY month
             ORDER BY month
-            """
+            """,
+            (start_ym, target_ym),
         ).fetchall()
     return [{"month": r["month"], "count": r["count"]} for r in rows]
 
@@ -289,7 +307,12 @@ def _period_where(target_date: str, period: str):
     return "1=1", []
 
 
-app.mount("/", StaticFiles(directory=Path(__file__).parent.parent / "frontend", html=True), name="frontend")
+_dist = Path(__file__).parent.parent / "frontend" / "dist"
+app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa_fallback(full_path: str):
+    return FileResponse(_dist / "index.html")
 
 
 if __name__ == "__main__":
