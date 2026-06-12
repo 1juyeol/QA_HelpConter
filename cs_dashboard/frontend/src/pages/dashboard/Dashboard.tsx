@@ -5,7 +5,7 @@
 // 데이터 흐름: api/client.ts 함수 호출 → 상태 업데이트 → Chart.js 재렌더링 → DOM 반영.
 import { useEffect, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
-import { api, type BucketRow, type CategoryRow, type DailyRow, type Issue, type MonthlyRow, type WeeklyRow } from '../../api/client'
+import { api, adminStudentUrl, adminParentUrl, type BucketRow, type CategoryRow, type DailyRow, type Issue, type MonthlyRow, type WeeklyRow } from '../../api/client'
 
 type Period = 'hourly_range' | 'day' | 'week' | 'month'
 
@@ -520,8 +520,16 @@ export default function Dashboard() {
                       <tbody>
                         {memoItems.map(r => (
                           <tr key={r.id}>
-                            <td style={{ color: '#64748b', fontSize: 12 }}>{r.student_id || '—'}</td>
-                            <td style={{ color: '#64748b', fontSize: 12 }}>{r.parent_id || '—'}</td>
+                            <td style={{ fontSize: 12 }}>
+                              {r.student_id
+                                ? <a href={adminStudentUrl(r.student_id)} target="_blank" rel="noreferrer" style={{ color: '#1a56db', textDecoration: 'none' }}>{r.student_id}</a>
+                                : <span style={{ color: '#64748b' }}>—</span>}
+                            </td>
+                            <td style={{ fontSize: 12 }}>
+                              {r.parent_id
+                                ? <a href={adminParentUrl(r.parent_id!)} target="_blank" rel="noreferrer" style={{ color: '#1a56db', textDecoration: 'none' }}>{r.parent_id}</a>
+                                : <span style={{ color: '#64748b' }}>—</span>}
+                            </td>
                             <td style={{ color: '#374151', fontSize: 13 }}>
                               {r.call_memo
                                 ? r.call_memo.split('\n').map((line, i) => <span key={i}>{i > 0 && <br />}{line}</span>)

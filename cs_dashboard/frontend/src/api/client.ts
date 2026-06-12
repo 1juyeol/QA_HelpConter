@@ -1,4 +1,13 @@
 // 모든 백엔드 API 호출과 TypeScript 타입을 한 곳에 모은다. 컴포넌트는 직접 fetch를 쓰지 않고 이 모듈만 참조한다.
+// 엔드포인트 경로·파라미터 변경이 생기면 이 파일만 수정하면 된다 (정책 9).
+//
+// [student_id / parent_id 참고]
+// 두 ID 모두 help-desk 원본 데이터에서 오며, 내부 어드민 페이지 URL에 직접 사용된다.
+//   학생 상세: https://ad.wink.co.kr/members/search/students/{student_id}/basic/read
+//   학부모 상세: https://ad.wink.co.kr/members/member/parents/{parent_id}/basic/read
+// 이 URL들은 fetch 호출이 아니라 브라우저 직접 이동(<a href>)이므로 api 함수가 아닌
+// 컴포넌트(Dashboard.tsx, RepeatParents.tsx)에 링크로 박혀 있다.
+// parent_id=92 는 내부 계정이므로 백엔드에서 NULL 처리 후 내려온다.
 
 // ── 타입 정의 ────────────────────────────────────────────────────
 
@@ -28,6 +37,7 @@ export interface IssueList { total: number; items: Issue[] }
 export interface InsightWings {
   ticket_id: string
   cs_count: number
+  state?: string  // Wings API에서 조회한 실제 상태 (신규·진행 중·해결·요청취소 등). 토큰 미설정 시 undefined.
   memos: { memo: string; date: string }[]
   first_date: string
   latest_date: string
@@ -47,6 +57,16 @@ export interface CollectionLatest {
   count: number
   status: string
 }
+
+// ── 어드민 URL 헬퍼 ──────────────────────────────────────────────
+// 내부 어드민 페이지 URL을 생성한다. fetch 호출이 아니라 <a href> 링크용이므로
+// api 객체가 아닌 별도 함수로 분리한다. URL 구조가 바뀌면 여기만 수정하면 된다.
+
+export const adminStudentUrl = (studentId: string) =>
+  `https://ad.wink.co.kr/members/search/students/${studentId}/basic/read`
+
+export const adminParentUrl = (parentId: string) =>
+  `https://ad.wink.co.kr/members/member/parents/${parentId}/basic/read`
 
 // ── 기본 fetcher ─────────────────────────────────────────────────
 
