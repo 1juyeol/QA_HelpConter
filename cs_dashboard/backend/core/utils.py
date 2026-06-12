@@ -44,3 +44,9 @@ def _period_where(target_date: str, period: str):
         start = str(d.replace(day=1))
         return f"{col} BETWEEN ? AND ?", [start, target_date]
     return "1=1", []
+
+
+def _four_week_range(target_date: str) -> tuple:
+    d = date.fromisoformat(target_date)
+    monday = d - timedelta(days=d.weekday())
+    return str(monday - timedelta(days=21)), str(monday + timedelta(days=6))
