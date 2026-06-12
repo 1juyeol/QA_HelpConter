@@ -1,12 +1,12 @@
 # 인사이트 조회·갱신 API 라우터 (3개 엔드포인트). 집계는 compute.py, 저장은 cache.py에 위임한다.
 # GET  /api/insights/wings_tickets  : 반복 Wings 티켓 캐시 조회.
 # GET  /api/insights/repeat_parents : 학부모 반복 인입 캐시 조회.
-# POST /api/insights/refresh        : 즉시 재집계 후 캐시 갱신 — UI 새로고침 버튼이 이 엔드포인트를 호출한다.
+# POST /api/insights/refresh        : 즉시 재집계 후 캐시 갱신 — scheduler.py의 update_insights_cache()를 호출해
+#                                     Wings 상태 enrichment까지 포함한다.
 import json
-from datetime import date, timedelta
 from fastapi import APIRouter
-from features.insights.cache import _read_cache, _save_insights_cache
-from features.insights.compute import compute_wings_tickets, compute_repeat_parents
+from features.insights.cache import _read_cache
+from features.collection.scheduler import update_insights_cache
 
 router = APIRouter()
 
@@ -29,7 +29,5 @@ def insights_repeat_parents():
 
 @router.post("/api/insights/refresh")
 async def insights_refresh():
-    end = str(date.today())
-    start = str(date.today() - timedelta(days=30))
-    _save_insights_cache(compute_wings_tickets(start, end), compute_repeat_parents(start, end))
+    await update_insights_cache()
     return {"status": "ok"}

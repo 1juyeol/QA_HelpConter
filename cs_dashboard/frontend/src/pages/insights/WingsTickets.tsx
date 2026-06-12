@@ -4,6 +4,32 @@
 // 이 컴포넌트 내부에서만 상태를 관리하며 다른 페이지와 상태를 공유하지 않는다 (정책 8).
 import { Fragment, useEffect, useState } from 'react'
 import { api, type InsightWings } from '../../api/client'
+
+const STATE_STYLE: Record<string, { bg: string; color: string }> = {
+  '신규':        { bg: '#eff6ff', color: '#1a56db' },
+  '진행 중':     { bg: '#fef9c3', color: '#b45309' },
+  '결과 확인 중':{ bg: '#fef9c3', color: '#b45309' },
+  '해결':        { bg: '#dcfce7', color: '#15803d' },
+  '요청취소':    { bg: '#f1f5f9', color: '#64748b' },
+  'merged':      { bg: '#f1f5f9', color: '#64748b' },
+}
+
+function StateBadge({ state, delayed, diffDays }: { state?: string; delayed: boolean; diffDays: number }) {
+  if (delayed) {
+    return (
+      <>
+        <span style={{ display: 'inline-block', background: '#fee2e2', color: '#dc2626', borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>처리 지연</span>
+        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{diffDays}일 경과</div>
+      </>
+    )
+  }
+  if (!state) {
+    return <span style={{ display: 'inline-block', background: '#f1f5f9', color: '#64748b', borderRadius: 999, padding: '2px 8px', fontSize: 11 }}>—</span>
+  }
+  const s = STATE_STYLE[state] ?? { bg: '#f1f5f9', color: '#64748b' }
+  return <span style={{ display: 'inline-block', background: s.bg, color: s.color, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{state}</span>
+}
+
 export default function WingsTickets() {
   const [rows, setRows] = useState<InsightWings[]>([])
   const [updatedAt, setUpdatedAt] = useState('')
@@ -87,7 +113,8 @@ export default function WingsTickets() {
                   const diffDays = r.first_date && r.latest_date
                     ? Math.floor((new Date(r.latest_date).getTime() - new Date(r.first_date).getTime()) / 86400000)
                     : 0
-                  const delayed = diffDays >= 7
+                  const closed = r.state === '해결' || r.state === '요청취소' || r.state === 'merged'
+                  const delayed = diffDays >= 7 && !closed
 
                   return (
                     <Fragment key={i}>
@@ -100,14 +127,7 @@ export default function WingsTickets() {
                         </td>
                         <td><span className="count-badge">{r.cs_count}건</span></td>
                         <td>
-                          {delayed ? (
-                            <>
-                              <span style={{ display: 'inline-block', background: '#fee2e2', color: '#dc2626', borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>처리 지연</span>
-                              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{diffDays}일 경과</div>
-                            </>
-                          ) : (
-                            <span style={{ display: 'inline-block', background: '#f1f5f9', color: '#64748b', borderRadius: 999, padding: '2px 8px', fontSize: 11 }}>진행중</span>
-                          )}
+                          <StateBadge state={r.state} delayed={delayed} diffDays={diffDays} />
                         </td>
                         <td style={{ color: '#374151', fontSize: 13 }}>
                           {preview}{latestMemo.length > 100 ? '…' : ''}

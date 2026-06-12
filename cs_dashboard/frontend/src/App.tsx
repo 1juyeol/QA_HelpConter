@@ -3,7 +3,7 @@
 // 마지막 수집 시각 표시를 위해 /api/collection/latest를 60초 간격으로 폴링하는 것만 여기서 담당하며,
 // 그 외 기능 로직은 모두 각 페이지 컴포넌트 안에 있다.
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/dashboard/Dashboard'
 import WingsTickets from './pages/insights/WingsTickets'
@@ -38,9 +38,9 @@ export default function App() {
     <BrowserRouter>
       <header>
         <div className="header-left">
-          <h1 style={{ cursor: 'pointer' }} onClick={() => location.reload()}>
-            공감센터 CS 대시보드
-          </h1>
+          <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <h1 style={{ cursor: 'pointer' }}>공감센터 CS 대시보드</h1>
+          </Link>
           <p>{headerDate()}</p>
         </div>
         <span id="last-collected">{lastCollected}</span>
