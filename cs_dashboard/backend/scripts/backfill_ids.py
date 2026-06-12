@@ -1,4 +1,10 @@
-"""student_id, parent_id 누락 데이터 일괄 보완."""
+# student_id·parent_id 누락 이슈 일괄 보완 스크립트.
+# issues 테이블에서 student_id가 NULL인 날짜를 찾아 Helpdesk API를 재호출해 ID를 채운다.
+# 실행 방법: cd backend && python scripts/backfill_ids.py
+# 주요 흐름: student_id=NULL 날짜 목록 조회 → Helpdesk 로그인(아이디·비밀번호 입력)
+#           → 날짜별 100건씩 페이지네이션 조회 → student_id·parent_id UPDATE → 완료 출력.
+# 의존: features/collection/client.py(HelpdeskClient), core/db.py(get_conn)
+# 주의: API 호출 사이 DELAY(5초) 대기 — rate limit 방어용.
 import asyncio
 import getpass
 import sys

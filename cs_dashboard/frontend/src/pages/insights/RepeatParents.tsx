@@ -1,36 +1,30 @@
-// 학부모 반복 인입 인사이트 페이지. 30일 내 동일 학부모가 2회 이상 CS 인입한 목록을 테이블로 표시한다.
+// 학부모 반복 인입 인사이트 페이지. 30일 내 동일 학부모가 3회 이상 CS 인입한 목록을 표시한다.
+// 상단에 문의 유형 도넛 차트·추이 스택 바 차트를 표시해 반복 고객의 주요 불만 카테고리를 시각화한다.
 // 대분류 선택 → 해당 대분류 전체 소분류 조회 / 소분류 선택 → 해당 소분류 메모만 조회.
 // 새로고침 버튼은 POST /api/insights/refresh → 재조회 순서로 동작한다.
 // 이 컴포넌트 내부에서만 상태를 관리하며 다른 페이지와 상태를 공유하지 않는다 (정책 8).
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import Chart from 'chart.js/auto'
 import { api, adminParentUrl, type InsightParent } from '../../api/client'
+import { ALLOWED_MAIN, ALLOWED_SPECIFIC, FILTER_TREE, isAllowedCategory } from '../../api/categories'
 
-// 표시할 카테고리 계층. 여기 정의된 대분류·소분류만 필터 버튼에 노출된다.
-const FILTER_TREE = [
-  { main: '네트워크·앱 오류',   subs: ['와이파이 오류', '학습 끊김·멈춤', '앱 오류'] },
-  { main: '기기·하드웨어 오류', subs: ['충전 불량', '터치·화면 불량', '전원·부팅 오류', '기기 파손', '기기 교체 요청'] },
-  { main: '미납·결제',          subs: ['미납 관리', '결제·환불 처리'] },
-  { main: '해지·유지 상담',     subs: ['해지 확정', '해지금·위약금 문의'] },
-  { main: '교재·물류·배송',     subs: ['기기 장기미회수', '누락·오배송'] },
-]
+const CATEGORY_COLORS: Record<string, string> = {
+  '네트워크·앱 오류':   '#3b82f6',
+  '기기·하드웨어 오류': '#f59e0b',
+  '미납·결제':          '#ef4444',
+  '해지·유지 상담':     '#8b5cf6',
+  '교재·물류·배송':     '#10b981',
+}
 
-// 대분류 전체 허용
-const ALLOWED_MAIN = new Set(['네트워크·앱 오류', '기기·하드웨어 오류', '미납·결제'])
-// 소분류 단위 허용
-const ALLOWED_SPECIFIC = new Set([
-  '해지·유지 상담 > 해지 확정',
-  '해지·유지 상담 > 해지금·위약금 문의',
-  '교재·물류·배송 > 기기 장기미회수',
-  '교재·물류·배송 > 누락·오배송',
-])
 
 type ActiveFilter = { main: string | null; sub: string | null }
 
 function isQualified(r: InsightParent) {
-  return r.memos.some(m => {
+  const count = r.memos.filter(m => {
     const main = m.category.split(' > ')[0]
     return ALLOWED_MAIN.has(main) || ALLOWED_SPECIFIC.has(m.category)
-  })
+  }).length
+  return count >= 3
 }
 
 function memoMatches(category: string, f: ActiveFilter): boolean {
@@ -47,6 +41,11 @@ export default function RepeatParents() {
   const [refreshing, setRefreshing] = useState(false)
   const [filter, setFilter] = useState<ActiveFilter>({ main: null, sub: null })
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+  const donutCanvasRef = useRef<HTMLCanvasElement>(null)
+  const donutChartRef = useRef<Chart | null>(null)
+  const barCanvasRef = useRef<HTMLCanvasElement>(null)
+  const barChartRef = useRef<Chart | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -98,6 +97,81 @@ export default function RepeatParents() {
     }).length
   }
 
+  useEffect(() => {
+    if (loading || !data.length) return
+
+    const catCount: Record<string, number> = {}
+    const dateMatrixMap: Record<string, Record<string, number>> = {}
+
+    data.forEach(p => {
+      p.memos.forEach(m => {
+        if (!m.category || !isAllowedCategory(m.category)) return
+        const main = m.category.split(' > ')[0]
+        catCount[main] = (catCount[main] ?? 0) + 1
+        const d = m.date?.slice(0, 10)
+        if (d) {
+          if (!dateMatrixMap[d]) dateMatrixMap[d] = {}
+          dateMatrixMap[d][main] = (dateMatrixMap[d][main] ?? 0) + 1
+        }
+      })
+    })
+
+    if (donutCanvasRef.current) {
+      donutChartRef.current?.destroy()
+      const labels = Object.keys(catCount).sort((a, b) => catCount[b] - catCount[a])
+      donutChartRef.current = new Chart(donutCanvasRef.current, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: labels.map(l => catCount[l]),
+            backgroundColor: labels.map(l => CATEGORY_COLORS[l] ?? '#94a3b8'),
+            borderWidth: 2,
+            borderColor: '#fff',
+          }],
+        },
+        options: {
+          cutout: '58%',
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } },
+          },
+        },
+      })
+    }
+
+    if (barCanvasRef.current) {
+      barChartRef.current?.destroy()
+      const dates = Object.keys(dateMatrixMap).sort()
+      const cats = Object.keys(catCount).sort((a, b) => catCount[b] - catCount[a])
+      barChartRef.current = new Chart(barCanvasRef.current, {
+        type: 'bar',
+        data: {
+          labels: dates.map(d => d.slice(5)),
+          datasets: cats.map(cat => ({
+            label: cat,
+            data: dates.map(d => dateMatrixMap[d]?.[cat] ?? 0),
+            backgroundColor: CATEGORY_COLORS[cat] ?? '#94a3b8',
+            stack: 'stack',
+          })),
+        },
+        options: {
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+          },
+          scales: {
+            x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+            y: { stacked: true, ticks: { font: { size: 11 } } },
+          },
+        },
+      })
+    }
+  }, [loading, data])
+
+  useEffect(() => () => {
+    donutChartRef.current?.destroy()
+    barChartRef.current?.destroy()
+  }, [])
+
   const rows = [...(filter.main
     ? data.filter(r => r.memos.some(m => memoMatches(m.category, filter)))
     : data
@@ -105,10 +179,24 @@ export default function RepeatParents() {
 
   return (
     <div className="container">
-      <div className="section-card">
+      {/* B+C: 문의 유형 차트 — 데이터 로드 후 표시 */}
+      {!loading && data.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
+          <div className="section-card">
+            <h2>문의 유형 분포 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>30일</span></h2>
+            <canvas ref={donutCanvasRef} />
+          </div>
+          <div className="section-card">
+            <h2>문의 유형 추이 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>반복 고객 기준 30일</span></h2>
+            <canvas ref={barCanvasRef} />
+          </div>
+        </div>
+      )}
+
+      <div className="section-card" style={{ marginTop: 16 }}>
         <h2>학부모 반복 인입</h2>
         <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
-          동일 학부모가 여러 차례 CS 인입한 건 — 미해결 이슈나 반복 불만 고객을 파악할 수 있습니다.
+          최근 30일 내 3회 이상 CS 인입한 학부모 — 미해결 이슈나 반복 불만 고객을 파악할 수 있습니다.
         </p>
         <div className="insight-toolbar">
           <span style={{ fontSize: 12, color: '#94a3b8' }}>{updatedAt}</span>

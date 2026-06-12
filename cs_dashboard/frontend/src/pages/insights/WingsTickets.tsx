@@ -27,7 +27,7 @@ function StateBadge({ state, delayed, diffDays }: { state?: string; delayed: boo
     return <span style={{ display: 'inline-block', background: '#f1f5f9', color: '#64748b', borderRadius: 999, padding: '2px 8px', fontSize: 11 }}>—</span>
   }
   const s = STATE_STYLE[state] ?? { bg: '#f1f5f9', color: '#64748b' }
-  return <span style={{ display: 'inline-block', background: s.bg, color: s.color, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>{state}</span>
+  return <span style={{ display: 'inline-block', background: s.bg, color: s.color, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{state}</span>
 }
 
 export default function WingsTickets() {

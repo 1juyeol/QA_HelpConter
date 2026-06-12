@@ -1,4 +1,10 @@
-"""기존 미분류(new_category_main IS NULL) 데이터 일괄 재분류."""
+# 미분류 이슈 일괄 재분류 스크립트.
+# new_category_main IS NULL 또는 '미분류'인 issues 행을 모두 조회해 classifier.py 규칙을 적용한다.
+# 실행 방법: cd backend && python scripts/reclassify.py
+# 주요 흐름: get_conn()으로 미분류 행 조회 → classify(call_memo)로 대분류·소분류 결정
+#           → executemany로 new_category_main·new_category_sub 일괄 UPDATE → 결과 출력.
+# 의존: core/db.py(get_conn), features/issues/classifier.py(classify)
+# 주의: 분류 규칙(RULES) 변경 후 반드시 실행해야 한다 (정책 4).
 import sys
 from pathlib import Path
 

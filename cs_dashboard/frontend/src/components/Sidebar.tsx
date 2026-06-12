@@ -1,6 +1,7 @@
 // 좌측 네비게이션 사이드바. 대시보드 링크와 인사이트 서브메뉴(접기·펼치기)를 표시한다.
 // NavLink로 현재 경로를 감지해 활성 메뉴를 하이라이트한다.
 // 메뉴 열림/닫힘(insightsOpen) 로컬 상태만 관리하며 다른 상태나 API 호출은 없다.
+// 인사이트 서브메뉴: 요약 / 반복 Wings 티켓 / 학부모 반복 인입
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 export default function Sidebar() {
@@ -25,6 +26,12 @@ export default function Sidebar() {
       </div>
 
       <div className={`nav-sub${insightsOpen ? ' open' : ''}`}>
+        <NavLink
+          to="/insights/summary"
+          className={({ isActive }) => `nav-sub-item${isActive ? ' active' : ''}`}
+        >
+          인사이트 요약
+        </NavLink>
         <NavLink
           to="/insights/wings"
           className={({ isActive }) => `nav-sub-item${isActive ? ' active' : ''}`}

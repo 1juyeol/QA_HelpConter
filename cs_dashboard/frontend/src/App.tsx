@@ -1,11 +1,12 @@
 // 앱의 최상위 레이아웃 컴포넌트이자 라우터. 헤더(제목·날짜·마지막 수집 시각)와 사이드바를 렌더링하고
-// URL 경로에 따라 Dashboard / WingsTickets / RepeatParents 페이지를 교체한다 (정책 7).
+// URL 경로에 따라 Dashboard / InsightsSummary / WingsTickets / RepeatParents 페이지를 교체한다 (정책 7).
 // 마지막 수집 시각 표시를 위해 /api/collection/latest를 60초 간격으로 폴링하는 것만 여기서 담당하며,
 // 그 외 기능 로직은 모두 각 페이지 컴포넌트 안에 있다.
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/dashboard/Dashboard'
+import InsightsSummary from './pages/insights/InsightsSummary'
 import WingsTickets from './pages/insights/WingsTickets'
 import RepeatParents from './pages/insights/RepeatParents'
 import { api } from './api/client'
@@ -50,6 +51,7 @@ export default function App() {
         <div className="content">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/insights/summary" element={<InsightsSummary />} />
             <Route path="/insights/wings" element={<WingsTickets />} />
             <Route path="/insights/parents" element={<RepeatParents />} />
           </Routes>
