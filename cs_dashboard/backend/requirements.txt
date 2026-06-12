@@ -6,3 +6,4 @@ pytz
 python-multipart
 python-dotenv
 pytest
+kiwipiepy

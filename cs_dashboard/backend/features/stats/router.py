@@ -1,16 +1,60 @@
-# 통계 집계 API 라우터 (7개 엔드포인트). 모두 GET 요청이며 쿼리 파라미터로 기간을 지정한다.
+# 통계 집계 API 라우터 (8개 엔드포인트). 모두 GET 요청이며 쿼리 파라미터로 기간을 지정한다.
 # hourly_range     : 날짜 범위의 30분 버킷별 건수 반환 — 차트 X축 26개 버킷 고정 출력.
 # daily            : 일별 건수 (period=day/week/month).
 # category         : 대분류·소분류·버킷 조합 필터 집계 — 카테고리 드릴다운용.
 # weekly           : 주차별 건수 (최근 4주). monthly : 월별 건수 (최근 3개월).
 # category_weekly  : 주별 카테고리별 건수 — SQI 계산용.
 # sentiment_weekly : 주별 부정 키워드 포함 메모 건수 — 고객 언어 온도 계산용.
-from datetime import date
+# keyword_trend    : call_memo 한국어 명사 중 이번 주 급증 키워드 TOP 10 — 미지의 버그 탐지기용.
+#                    kiwipiepy로 형태소 분석, 결과를 insights_cache에 캐시한다 (당일 유효).
+import json
+from datetime import date, timedelta
 from fastapi import APIRouter, Query
 from core.db import get_conn
 from core.utils import BUCKET_SQL, BUCKETS, _bucket_where, _period_where, _four_week_range
 
 router = APIRouter()
+
+# CS 메모에서 항상 등장하지만 트렌드 분석 가치가 없는 일반 관리 용어 및 서비스 고유 명사.
+# keyword_trend 결과에서 이 단어들은 제외한다.
+CS_STOP_WORDS = {
+    '안내', '확인', '진행', '처리', '연락', '문의', '완료', '예정',
+    '요청', '상담', '후속', '관리', '이력', '관련', '해당',
+    '사항', '확인사항', '안내사항', '후속관리', '미진행',
+    '없음', '있음', '불가', '가능', '접수', '증상',
+    '특이사항', '처리내용', '처리사항',
+    '고객', '학부모', '학생', '아이', '선생님',
+    '학습기', '단말기', '윙크', '학습', '기기',
+    '선출고', '후회수', '출고', '회수', '배송', '주소',
+    '전화', '문자', '통화', '연결',
+}
+
+_kiwi = None
+
+
+def _get_kiwi():
+    global _kiwi
+    if _kiwi is None:
+        from kiwipiepy import Kiwi
+        _kiwi = Kiwi()
+    return _kiwi
+
+
+def extract_nouns_batch(texts: list) -> list:
+    """call_memo 리스트를 한 번에 형태소 분석한다 (배치 모드, 단건 반복보다 훨씬 빠름).
+    NNP(고유명사)는 사람 이름·브랜드명이 섞여 있어 제외한다.
+    반환: 입력 리스트와 같은 길이의 set 리스트. 각 set은 해당 메모의 NNG 명사 집합."""
+    kiwi = _get_kiwi()
+    results = []
+    for analysis in kiwi.analyze(texts):
+        # analyze() → [(token_list, score), ...]; [0][0]이 최적 분석 결과의 토큰 리스트
+        nouns = {
+            tok.form for tok in analysis[0][0]
+            if tok.tag == 'NNG' and len(tok.form) >= 2 and tok.form not in CS_STOP_WORDS
+        }
+        results.append(nouns)
+    return results
+
 
 NEGATIVE_KEYWORDS = [
     '환불', '해지', '짜증', '불만', '화가', '실망',
@@ -188,3 +232,110 @@ def stats_sentiment_weekly(target_date: str = Query(default=None)):
             (*like_params, range_start, range_end),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+@router.get("/api/stats/keyword_trend")
+def stats_keyword_trend(target_date: str = Query(default=None)):
+    """call_memo에서 한국어 명사를 추출해 이번 주 급증 키워드 TOP 10을 반환한다.
+
+    이번 주: target_date가 속한 주의 월요일 ~ target_date
+    직전 4주: 이번 주 월요일 - 28일 ~ 이번 주 월요일 - 1일
+    증가율 = 이번주_빈도 / max(직전4주_주당평균, 1)
+    신규 = 직전 4주 동안 0회 등장한 단어
+    이번 주 최소 3건 이상인 단어만 포함.
+
+    형태소 분석은 처음 호출 시 최대 30초 소요. 결과는 insights_cache에 당일 유효로 저장.
+    반환: [{"word", "this_week", "avg_per_week", "growth_rate", "is_new"}, ...]
+    """
+    if not target_date:
+        target_date = str(date.today())
+
+    cache_key = f"keyword_trend:{target_date}"
+    with get_conn() as conn:
+        cached = conn.execute(
+            "SELECT data FROM insights_cache WHERE key = ?", (cache_key,)
+        ).fetchone()
+    if cached:
+        return json.loads(cached["data"])
+
+    d = date.fromisoformat(target_date)
+    this_week_monday = d - timedelta(days=d.weekday())
+    prior_start = this_week_monday - timedelta(days=28)
+    prior_end = this_week_monday - timedelta(days=1)
+
+    col = "date(datetime(created_date, '+9 hours'))"
+    with get_conn() as conn:
+        this_week_rows = conn.execute(
+            f"SELECT call_memo FROM issues "
+            f"WHERE {col} BETWEEN ? AND ? AND call_memo IS NOT NULL AND call_memo != ''",
+            (str(this_week_monday), target_date),
+        ).fetchall()
+        prior_rows = conn.execute(
+            f"SELECT call_memo, {col} AS day FROM issues "
+            f"WHERE {col} BETWEEN ? AND ? AND call_memo IS NOT NULL AND call_memo != ''",
+            (str(prior_start), str(prior_end)),
+        ).fetchall()
+
+    # 이번 주 단어별 포함 메모 수 (메모 단위 중복 제거) — 배치 분석
+    this_week_counts: dict[str, int] = {}
+    this_week_memos = [row["call_memo"] for row in this_week_rows]
+    for nouns in extract_nouns_batch(this_week_memos):
+        for word in nouns:
+            this_week_counts[word] = this_week_counts.get(word, 0) + 1
+
+    # 직전 4주 단어별 주당 포함 메모 수 — 배치 분석
+    from collections import defaultdict
+    prior_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    prior_memos = [row["call_memo"] for row in prior_rows]
+    prior_days = [row["day"] for row in prior_rows]
+    for nouns, day_str in zip(extract_nouns_batch(prior_memos), prior_days):
+        day = date.fromisoformat(day_str)
+        week_start = str(day - timedelta(days=day.weekday()))
+        for word in nouns:
+            prior_counts[word][week_start] += 1
+
+    results = []
+    for word, this_count in this_week_counts.items():
+        if this_count < 3:
+            continue
+        prior_total = sum(prior_counts[word].values()) if word in prior_counts else 0
+        avg_per_week = round(prior_total / 4, 1)
+        is_new = prior_total == 0
+        growth_rate = round(this_count / max(avg_per_week, 1), 1)
+        results.append({
+            "word": word,
+            "this_week": this_count,
+            "avg_per_week": avg_per_week,
+            "growth_rate": growth_rate,
+            "is_new": is_new,
+        })
+
+    results.sort(key=lambda x: x["growth_rate"], reverse=True)
+    top10 = results[:10]
+
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO insights_cache (key, data, updated_at) "
+            "VALUES (?, ?, datetime('now'))",
+            (cache_key, json.dumps(top10, ensure_ascii=False)),
+        )
+        conn.commit()
+
+    return top10
+
+
+@router.get("/api/stats/keyword_memos")
+def stats_keyword_memos(keyword: str = Query(...), target_date: str = Query(default=None)):
+    """이번 주 call_memo 중 keyword를 포함하는 메모 목록을 반환한다."""
+    if not target_date:
+        target_date = str(date.today())
+    d = date.fromisoformat(target_date)
+    this_week_monday = d - timedelta(days=d.weekday())
+    col = "date(datetime(created_date, '+9 hours'))"
+    with get_conn() as conn:
+        rows = conn.execute(
+            f"SELECT call_memo, {col} AS day FROM issues "
+            f"WHERE {col} BETWEEN ? AND ? AND call_memo LIKE ?",
+            (str(this_week_monday), target_date, f'%{keyword}%'),
+        ).fetchall()
+    return [{"memo": r["call_memo"], "date": r["day"]} for r in rows]
