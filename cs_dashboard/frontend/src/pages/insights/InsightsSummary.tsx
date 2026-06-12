@@ -1,14 +1,17 @@
-// 서비스 품질 지수(SQI)와 고객 언어 온도 인사이트 페이지.
+// 서비스 품질 지수(SQI), 고객 언어 온도, 미지의 버그 탐지기 인사이트 페이지.
 // SQI: 전체 CS 대비 리스크 카테고리(네트워크·앱 오류, 기기·하드웨어 오류, 미납 관리 등) 건수 비율.
 // 언어 온도: 부정 감정 키워드 포함 메모 비율 — 기술 지표와 별개로 고객 불만 강도를 측정한다.
+// 미지의 버그 탐지기: call_memo 명사 중 이번 주 급증 키워드 TOP 10 — 카테고리 분류 전 신호 포착.
 // SQI = ALLOWED 카테고리 건수 ÷ 전체 CS 건수 × 100
 // 언어 온도 = 부정 키워드 포함 메모 건수 ÷ 전체 CS 건수 × 100
 // 기준선은 최근 4주 중 첫 2주 평균으로 자동 설정하며, 초과 주는 빨간색으로 강조한다.
-// 데이터 소스: /api/stats/weekly, /api/stats/category_weekly, /api/stats/sentiment_weekly
+// 키워드 카드는 백엔드 형태소 분석으로 처음 로딩이 느릴 수 있어 별도 비동기 로딩한다.
+// 데이터 소스: /api/stats/weekly, /api/stats/category_weekly,
+//             /api/stats/sentiment_weekly, /api/stats/keyword_trend
 // ALLOWED 기준: RepeatParents.tsx의 ALLOWED_MAIN·ALLOWED_SPECIFIC와 동일하게 유지해야 한다.
 import { useEffect, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'
-import { api, type WeeklyCategoryRow, type SentimentWeeklyRow } from '../../api/client'
+import { api, type WeeklyCategoryRow, type SentimentWeeklyRow, type KeywordTrendRow, type KeywordMemoRow } from '../../api/client'
 import { FILTER_TREE, isAllowed } from '../../api/categories'
 
 const NEGATIVE_KEYWORDS = [
@@ -77,7 +80,7 @@ function KpiCard({ label, value, baseline }: { label: string; value: number; bas
       <div style={{ background: '#f8fafc', borderRadius: 12, padding: '20px 28px', border: '1px solid #e2e8f0', display: 'inline-block', minWidth: 160 }}>
         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>{label}</div>
         <div style={{ fontSize: 32, fontWeight: 700, color: isHigh ? '#ef4444' : '#0f172a' }}>
-          {value}%
+          {value.toFixed(1)}%
         </div>
         <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
           기준 {baseline.toFixed(1)}% 대비{' '}
@@ -92,22 +95,58 @@ function KpiCard({ label, value, baseline }: { label: string; value: number; bas
   )
 }
 
+// 증가율을 주황색 배경 강도로 변환한다. 높을수록 진한 주황.
+function growthRateToBg(rate: number): string {
+  if (rate <= 1)  return 'transparent'
+  if (rate <= 3)  return '#fff7ed'
+  if (rate <= 7)  return '#fed7aa'
+  if (rate <= 15) return '#fb923c'
+  return '#ea580c'
+}
+
+function growthRateToColor(rate: number): string {
+  if (rate <= 7) return '#9a3412'
+  return '#ffffff'
+}
+
 export default function InsightsSummary() {
   const [loading, setLoading] = useState(true)
   const [weeks, setWeeks] = useState<WeekData[]>([])
   const [sentimentWeeks, setSentimentWeeks] = useState<SentimentData[]>([])
+  const [keywordTrend, setKeywordTrend] = useState<KeywordTrendRow[]>([])
+  const [keywordLoading, setKeywordLoading] = useState(true)
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null)
+  const [keywordMemos, setKeywordMemos] = useState<KeywordMemoRow[]>([])
+  const [memoLoading, setMemoLoading] = useState(false)
+  const todayRef = useRef<string>('')
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart | null>(null)
   const sentimentCanvasRef = useRef<HTMLCanvasElement>(null)
   const sentimentChartRef = useRef<Chart | null>(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    todayRef.current = today
+    load(today)
+    loadKeywords(today)
+  }, [])
 
-  async function load() {
+  async function openMemoModal(keyword: string) {
+    setSelectedKeyword(keyword)
+    setKeywordMemos([])
+    setMemoLoading(true)
+    try {
+      const data = await api.fetchKeywordMemos(keyword, todayRef.current)
+      setKeywordMemos(data)
+    } finally {
+      setMemoLoading(false)
+    }
+  }
+
+  async function load(today: string) {
     setLoading(true)
     try {
-      const today = new Date().toISOString().slice(0, 10)
       const [weeklyData, categoryData, sentimentData] = await Promise.all([
         api.fetchWeekly(today),
         api.fetchCategoryWeekly(today),
@@ -135,6 +174,16 @@ export default function InsightsSummary() {
       })))
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadKeywords(today: string) {
+    setKeywordLoading(true)
+    try {
+      const data = await api.fetchKeywordTrend(today)
+      setKeywordTrend(data)
+    } finally {
+      setKeywordLoading(false)
     }
   }
 
@@ -175,6 +224,35 @@ export default function InsightsSummary() {
 
   return (
     <div className="container">
+      {/* 메모 팝업 모달 */}
+      {selectedKeyword && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setSelectedKeyword(null)}
+        >
+          <div
+            style={{ background: '#fff', borderRadius: 14, width: '90%', maxWidth: 600, maxHeight: '75vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: 700, fontSize: 15 }}>"{selectedKeyword}" 포함 메모 — 이번 주</span>
+              <button onClick={() => setSelectedKeyword(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: '#94a3b8', lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: '12px 20px', flex: 1 }}>
+              {memoLoading ? (
+                <div style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>불러오는 중...</div>
+              ) : !keywordMemos.length ? (
+                <div style={{ color: '#94a3b8', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>메모 없음</div>
+              ) : keywordMemos.map((m, i) => (
+                <div key={i} style={{ borderBottom: '1px solid #f1f5f9', padding: '10px 0' }}>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{m.date}</div>
+                  <div style={{ fontSize: 13, color: '#1e293b', lineHeight: 1.6 }}>{m.memo}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* SQI 카드 */}
       <div className="section-card">
         <h2>서비스 품질 지수 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>최근 1달</span></h2>
@@ -215,6 +293,65 @@ export default function InsightsSummary() {
             )}
             <canvas ref={canvasRef} />
           </>
+        )}
+      </div>
+
+      {/* 미지의 버그 탐지기 카드 */}
+      <div className="section-card" style={{ marginTop: 16 }}>
+        <h2>미지의 버그 탐지기 <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 400 }}>이번 주 기준</span></h2>
+        <p style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+          CS 메모에서 이번 주 갑자기 급증한 키워드예요. 아직 분류 체계에 잡히지 않은 새 문제를 포착할 수 있어요.
+        </p>
+        {keywordLoading ? (
+          <div className="loading">키워드 분석 중... (처음 로딩은 잠시 걸릴 수 있어요)</div>
+        ) : !keywordTrend.length ? (
+          <div className="empty">이번 주 급증 키워드 없음</div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>#</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>키워드</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>이번 주</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>4주 평균</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'right', color: '#94a3b8', fontWeight: 600, fontSize: 11 }}>증가율</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center', color: '#94a3b8', fontWeight: 600, fontSize: 11, width: 160 }}>
+                    신규<br /><span style={{ fontWeight: 400, fontSize: 10 }}>(직전 4주 미등장)</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {keywordTrend.map((row, i) => (
+                  <tr key={row.word} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '9px 10px', color: '#94a3b8', fontSize: 12 }}>{i + 1}</td>
+                    <td style={{ padding: '9px 10px', fontWeight: 600, color: '#1e293b' }}>{row.word}</td>
+                    <td
+                      style={{ padding: '9px 10px', textAlign: 'right', fontWeight: 600, color: '#2563eb', cursor: 'pointer', textDecoration: 'underline' }}
+                      onClick={() => openMemoModal(row.word)}
+                    >{row.this_week}</td>
+                    <td style={{ padding: '9px 10px', textAlign: 'right', color: '#64748b' }}>{row.avg_per_week.toFixed(1)}</td>
+                    <td style={{
+                      padding: '9px 10px', textAlign: 'right', fontWeight: 700,
+                      background: growthRateToBg(row.growth_rate),
+                      color: growthRateToColor(row.growth_rate),
+                    }}>
+                      {row.is_new ? '신규' : `${Math.round(row.growth_rate)}배`}
+                    </td>
+                    <td style={{ padding: '9px 10px', textAlign: 'center' }}>
+                      {row.is_new && (
+                        <span style={{
+                          background: '#dbeafe', color: '#1d4ed8',
+                          borderRadius: 999, padding: '2px 10px',
+                          fontSize: 11, fontWeight: 700,
+                        }}>NEW</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
