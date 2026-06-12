@@ -7,7 +7,8 @@
 // 기준선은 최근 4주 중 첫 2주 평균으로 자동 설정하며, 초과 주는 빨간색으로 강조한다.
 // 키워드 카드는 백엔드 형태소 분석으로 처음 로딩이 느릴 수 있어 별도 비동기 로딩한다.
 // 데이터 소스: /api/stats/weekly, /api/stats/category_weekly,
-//             /api/stats/sentiment_weekly, /api/stats/keyword_trend
+//             /api/stats/sentiment_weekly, /api/stats/keyword_trend,
+//             /api/stats/keyword_memos (키워드 클릭 시 메모 팝업)
 // ALLOWED 기준: RepeatParents.tsx의 ALLOWED_MAIN·ALLOWED_SPECIFIC와 동일하게 유지해야 한다.
 import { useEffect, useRef, useState } from 'react'
 import Chart from 'chart.js/auto'

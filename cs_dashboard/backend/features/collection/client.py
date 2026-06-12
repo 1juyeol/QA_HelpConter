@@ -19,6 +19,12 @@ HEADERS = {
 }
 
 
+def select_new_issues(parsed: list[dict], known_ids: set) -> list[dict]:
+    """정규화된 한 페이지 결과에서 known_ids에 없는 신규 이슈만 골라 반환한다 (증분 수집용 순수 함수).
+    반환이 빈 리스트면 호출부(fetch_issues)는 그 페이지가 전부 기존 ID라 보고 페이지네이션을 멈춘다."""
+    return [p for p in parsed if p["id"] not in known_ids]
+
+
 class HelpdeskClient:
     def __init__(self, xsrf_token: str, session: str):
         self.client = httpx.AsyncClient(
@@ -57,7 +63,13 @@ class HelpdeskClient:
             "parent_id": raw.get("parent"),
         }
 
-    async def fetch_issues(self, target_date: date) -> list[dict]:
+    async def fetch_issues(self, target_date: date, known_ids: set | None = None) -> list[dict]:
+        """target_date(하루)의 완료 이슈를 100건씩 페이지네이션해 정규화 dict 목록으로 반환한다.
+
+        known_ids 지정 시 '증분 모드': 결과를 최신순(-id)으로 받다가 한 페이지가 전부 기존 ID면
+        더 받지 않고 멈춘다(신규분만 수집). known_ids=None이면 그날 전체를 재조회한다(전량/보정용).
+        주의: 증분 모드는 이미 수집된 이슈의 사후 수정(메모·완료일 변경)은 반영하지 못한다.
+        """
         date_str = target_date.strftime("%Y-%m-%d")
         all_issues = []
         offset = 0
@@ -81,7 +93,14 @@ class HelpdeskClient:
             results = data.get("results", [])
             if not results:
                 break
-            all_issues.extend(self._parse_issue(r) for r in results)
+            parsed = [self._parse_issue(r) for r in results]
+            if known_ids is not None:
+                new = select_new_issues(parsed, known_ids)
+                all_issues.extend(new)
+                if not new:  # 이 페이지가 전부 기존 ID → 이후 페이지는 더 오래된 것뿐
+                    break
+            else:
+                all_issues.extend(parsed)
             if not data.get("next"):
                 break
             offset += limit

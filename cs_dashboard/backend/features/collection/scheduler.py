@@ -1,6 +1,7 @@
 # APScheduler 기반 자동 수집 스케줄러. 서버 시작 시 start_scheduler()를 한 번 호출한다.
-# 수집 주기: 매 정시(xx:00) 오늘치 수집 / 09:30~20:30 매 30분 단위 오늘치 재수집.
-# 자정(00:00): 어제 23시대 누락 데이터 보정 + 인사이트 캐시 갱신.
+# 수집 주기: 업무시간(09:00~20:30) 30분 간격 + 자정(00:00) 1회.
+#   - 09:00 실행이 00~09시 신규분을, 자정 실행이 전날 21~24시 신규분을 증분으로 채운다.
+#   - 자정엔 추가로 어제치 전량 재조회(사후 수정 보정) + 인사이트 캐시 갱신.
 # 자격증명(_username, _password)은 서버 시작 시 prompt_credentials()로 입력받아 전역 변수에 보관한다.
 # _wings_token: Wings(Zammad) API 토큰. 인사이트 캐시 갱신 시 티켓 상태를 실시간으로 조회하는 데 사용한다.
 # collect_date()는 성공·실패 모두 collection_log 테이블에 기록해 수집 이력을 추적한다.
@@ -19,9 +20,16 @@ from features.insights.cache import _save_insights_cache
 
 KST = pytz.timezone("Asia/Seoul")
 
+# 외부 API 호출 전면 중단 스위치 (2026-06, 승인 전까지 OFF).
+# False면 help-desk 수집·Wings 상태 조회를 일절 하지 않는다. 승인 후 True로 바꾸면 재개된다.
+COLLECTION_ENABLED = False
+
 _username: str = ""
 _password: str = ""
 _wings_token: str = ""
+# 로그인 세션을 재사용하기 위한 공유 클라이언트. 매 수집마다 새로 로그인하지 않고
+# 이 인스턴스를 계속 쓰다가, 인증 만료(401/403)가 감지될 때만 _relogin()으로 교체한다.
+_client = None
 
 # state_id → 한국어 상태명 (Wings/Zammad 기준)
 _WINGS_STATE = {1: "신규", 2: "진행 중", 4: "해결", 5: "merged", 7: "요청취소", 8: "결과 확인 중"}
@@ -38,7 +46,7 @@ def prompt_credentials():
 
 async def _fetch_wings_states(ticket_ids: list) -> dict:
     """Wings API로 티켓 상태를 비동기 병렬 조회한다. 토큰이 없으면 빈 dict 반환."""
-    if not _wings_token:
+    if not COLLECTION_ENABLED or not _wings_token:
         return {}
     headers = {"Authorization": f"Token token={_wings_token}"}
     async with httpx.AsyncClient(timeout=10) as client:
@@ -58,17 +66,45 @@ async def _fetch_wings_states(ticket_ids: list) -> dict:
 
 
 async def _get_client() -> HelpdeskClient:
-    return await HelpdeskClient.login(_username, _password)
+    """공유 로그인 세션을 반환한다. 없으면 최초 1회 로그인한다 (이후 재사용)."""
+    global _client
+    if _client is None:
+        _client = await HelpdeskClient.login(_username, _password)
+    return _client
 
 
-async def collect_date(target: date):
+async def _relogin() -> HelpdeskClient:
+    """세션 만료(401/403) 감지 시 기존 클라이언트를 닫고 새로 로그인한다."""
+    global _client
+    if _client is not None:
+        await _client.close()
+    _client = await HelpdeskClient.login(_username, _password)
+    return _client
+
+
+async def collect_date(target: date, incremental: bool = True):
+    if not COLLECTION_ENABLED:
+        return
     status = "success"
     message = ""
     count = 0
-    client = None
     try:
         client = await _get_client()
-        issues = await client.fetch_issues(target)
+        # 증분 모드: 이미 DB에 있는 ID는 건너뛰고 신규분만 수집 (페이지 호출 대폭 감소).
+        # incremental=False는 그날 전체를 재조회해 사후 수정분까지 보정한다(자정 보정용).
+        known_ids = None
+        if incremental:
+            with get_conn() as conn:
+                known_ids = {r[0] for r in conn.execute("SELECT id FROM issues").fetchall()}
+        try:
+            issues = await client.fetch_issues(target, known_ids=known_ids)
+        except httpx.HTTPStatusError as e:
+            # 세션 만료로 추정되면 1회만 재로그인 후 재시도
+            if e.response.status_code in (401, 403):
+                client = await _relogin()
+                issues = await client.fetch_issues(target, known_ids=known_ids)
+            else:
+                raise
         count = len(issues)
         for issue in issues:
             main, sub = classify(issue.get("call_memo", ""))
@@ -95,8 +131,7 @@ async def collect_date(target: date):
         status = "error"
         message = str(e)
     finally:
-        if client:
-            await client.close()
+        # 세션은 재사용하므로 매 수집마다 닫지 않는다 (만료 시 _relogin에서만 교체).
         with get_conn() as conn:
             conn.execute(
                 "INSERT INTO collection_log (date_target, count_fetched, status, message) VALUES (?, ?, ?, ?)",
@@ -112,10 +147,10 @@ async def collect_today():
     today = date.today()
     await collect_date(today)
 
-    # 자정(00:00)에는 어제 23시대 누락분 보정 후 인사이트 캐시 갱신
+    # 자정(00:00)에는 어제치를 전량 재조회(incremental=False)해 사후 수정분까지 보정 후 캐시 갱신
     if datetime.now(KST).hour == 0:
         yesterday = today - timedelta(days=1)
-        await collect_date(yesterday)
+        await collect_date(yesterday, incremental=False)
         await update_insights_cache()
 
 
@@ -135,8 +170,13 @@ async def update_insights_cache():
 
 
 def start_scheduler():
+    if not COLLECTION_ENABLED:
+        print("[scheduler] COLLECTION_ENABLED=False — 자동 수집/API 호출 비활성화됨")
+        return None
     scheduler = AsyncIOScheduler(timezone=KST)
-    scheduler.add_job(collect_today, "cron", minute=0)               # 매 정시 수집 (자정엔 어제 보정 + 캐시 갱신 포함)
-    scheduler.add_job(collect_today, "cron", hour="9-20", minute=30) # 09:30~20:30 30분 단위
+    # 업무시간(09:00~20:30)만 30분 간격으로 촘촘히 수집. 09:00 실행이 00~09시 신규분을 증분으로 채운다.
+    scheduler.add_job(collect_today, "cron", hour="9-20", minute="0,30")
+    # 자정 1회: 증분으로 전날 21~24시 신규분 + 어제치 전량 보정(사후 수정) + 인사이트 캐시 갱신
+    scheduler.add_job(collect_today, "cron", hour=0, minute=0)
     scheduler.start()
     return scheduler

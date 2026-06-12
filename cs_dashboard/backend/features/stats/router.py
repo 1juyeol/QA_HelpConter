@@ -1,4 +1,4 @@
-# 통계 집계 API 라우터 (8개 엔드포인트). 모두 GET 요청이며 쿼리 파라미터로 기간을 지정한다.
+# 통계 집계 API 라우터 (9개 엔드포인트). 모두 GET 요청이며 쿼리 파라미터로 기간을 지정한다.
 # hourly_range     : 날짜 범위의 30분 버킷별 건수 반환 — 차트 X축 26개 버킷 고정 출력.
 # daily            : 일별 건수 (period=day/week/month).
 # category         : 대분류·소분류·버킷 조합 필터 집계 — 카테고리 드릴다운용.
@@ -7,6 +7,7 @@
 # sentiment_weekly : 주별 부정 키워드 포함 메모 건수 — 고객 언어 온도 계산용.
 # keyword_trend    : call_memo 한국어 명사 중 이번 주 급증 키워드 TOP 10 — 미지의 버그 탐지기용.
 #                    kiwipiepy로 형태소 분석, 결과를 insights_cache에 캐시한다 (당일 유효).
+# keyword_memos    : 이번 주 call_memo 중 특정 keyword를 포함하는 메모 목록 — 키워드 클릭 시 팝업용.
 import json
 from datetime import date, timedelta
 from fastapi import APIRouter, Query
@@ -54,6 +55,35 @@ def extract_nouns_batch(texts: list) -> list:
         }
         results.append(nouns)
     return results
+
+
+def compute_keyword_trend(this_week_counts: dict, prior_counts: dict) -> list:
+    """집계된 단어 빈도로 이번 주 급증 키워드 TOP 10을 계산한다 (순수 함수, DB·형태소 분석과 분리).
+
+    this_week_counts: {단어: 이번주 포함 메모 수}
+    prior_counts:     {단어: {주차 월요일: 해당 주 포함 메모 수}}  (직전 4주)
+
+    증가율 = 이번주_빈도 / max(직전4주_주당평균, 1)
+    신규   = 직전 4주 동안 0회 등장
+    이번 주 최소 3건 이상인 단어만 포함하며, 증가율 내림차순 TOP 10을 반환한다.
+    반환: [{"word", "this_week", "avg_per_week", "growth_rate", "is_new"}, ...]"""
+    results = []
+    for word, this_count in this_week_counts.items():
+        if this_count < 3:
+            continue
+        prior_total = sum(prior_counts[word].values()) if word in prior_counts else 0
+        avg_per_week = round(prior_total / 4, 1)
+        is_new = prior_total == 0
+        growth_rate = round(this_count / max(avg_per_week, 1), 1)
+        results.append({
+            "word": word,
+            "this_week": this_count,
+            "avg_per_week": avg_per_week,
+            "growth_rate": growth_rate,
+            "is_new": is_new,
+        })
+    results.sort(key=lambda x: x["growth_rate"], reverse=True)
+    return results[:10]
 
 
 NEGATIVE_KEYWORDS = [
@@ -294,24 +324,7 @@ def stats_keyword_trend(target_date: str = Query(default=None)):
         for word in nouns:
             prior_counts[word][week_start] += 1
 
-    results = []
-    for word, this_count in this_week_counts.items():
-        if this_count < 3:
-            continue
-        prior_total = sum(prior_counts[word].values()) if word in prior_counts else 0
-        avg_per_week = round(prior_total / 4, 1)
-        is_new = prior_total == 0
-        growth_rate = round(this_count / max(avg_per_week, 1), 1)
-        results.append({
-            "word": word,
-            "this_week": this_count,
-            "avg_per_week": avg_per_week,
-            "growth_rate": growth_rate,
-            "is_new": is_new,
-        })
-
-    results.sort(key=lambda x: x["growth_rate"], reverse=True)
-    top10 = results[:10]
+    top10 = compute_keyword_trend(this_week_counts, prior_counts)
 
     with get_conn() as conn:
         conn.execute(

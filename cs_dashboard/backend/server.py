@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from core.db import init_db
-from features.collection.scheduler import start_scheduler, collect_today, prompt_credentials
+from features.collection.scheduler import start_scheduler, collect_today, prompt_credentials, COLLECTION_ENABLED
 from features.insights.cache import _init_insights_cache
 from features.stats.router import router as stats_router
 from features.issues.router import router as issues_router
@@ -35,10 +35,12 @@ app.include_router(collection_router)
 
 @app.on_event("startup")
 async def startup():
-    prompt_credentials()
+    if COLLECTION_ENABLED:
+        prompt_credentials()
     init_db()
     start_scheduler()
-    asyncio.create_task(collect_today())
+    if COLLECTION_ENABLED:
+        asyncio.create_task(collect_today())
     asyncio.create_task(_init_insights_cache())
 
 
