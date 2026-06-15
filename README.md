@@ -12,21 +12,21 @@ cs_dashboard/
 ├── backend/
 │   ├── server.py                      # 진입점: 라우터 등록·startup·SPA 폴백만
 │   ├── core/
-│   │   ├── db.py                      # DB 연결·스키마 초기화
-│   │   └── utils.py                   # 시간 버킷·기간 필터 공유 유틸
+│   │   ├── db.py                          # DB 연결·스키마 초기화
+│   │   └── date_bucket_utils.py           # 시간 버킷·기간 필터 공유 유틸
 │   ├── features/
-│   │   ├── stats/router.py            # GET /api/stats/* (5개)
+│   │   ├── stats/stats_endpoints.py       # GET /api/stats/* (9개)
 │   │   ├── issues/
-│   │   │   ├── router.py              # GET /api/issues
-│   │   │   └── classifier.py          # 키워드 기반 CS 분류 로직
+│   │   │   ├── issues_endpoints.py        # GET /api/issues
+│   │   │   └── classifier.py              # 키워드 기반 CS 분류 로직
 │   │   ├── insights/
-│   │   │   ├── router.py              # GET·POST /api/insights/*
-│   │   │   ├── compute.py             # Wings 티켓·반복 인입 집계 계산
-│   │   │   └── cache.py               # 인사이트 DB 캐시 관리
+│   │   │   ├── insights_endpoints.py      # GET·POST /api/insights/*
+│   │   │   ├── insight_aggregations.py    # Wings 티켓·반복 인입 집계 계산
+│   │   │   └── insights_cache.py          # 인사이트 DB 캐시 관리
 │   │   └── collection/
-│   │       ├── router.py              # GET /api/collection/latest
-│   │       ├── scheduler.py           # 자동 수집 스케줄러
-│   │       └── client.py              # help-desk API HTTP 클라이언트
+│   │       ├── collection_endpoints.py    # GET /api/collection/latest
+│   │       ├── scheduler.py               # 자동 수집 스케줄러
+│   │       └── helpdesk_client.py         # help-desk API HTTP 클라이언트
 │   ├── scripts/
 │   │   ├── reclassify.py              # 전체 재분류 일괄 실행
 │   │   └── backfill_ids.py            # student_id·parent_id 누락 보완
@@ -61,7 +61,7 @@ cs_dashboard/
       │
       ├─ 통계·이슈 API (features/stats, features/issues)
       │
-      └─ 인사이트 캐시 (features/insights/cache.py)
+      └─ 인사이트 캐시 (features/insights/insights_cache.py)
             └─ Wings 티켓 반복 인입 / 학부모 반복 인입 집계
       │
       ▼
@@ -369,7 +369,7 @@ GET https://admin-api.wink.co.kr/account/actors/<parent_id>/
 
 - `help-desk-api.wink.co.kr`는 **CS 상담원이 실시간으로 쓰는 운영 API**다. 대량 스크랩이 상담
   트래픽과 경쟁하면 운영 서버가 느려지거나 장애가 날 수 있다.
-- 현재 `client.py`의 `fetch_issues`는 **페이지 호출 사이 딜레이가 없다**. 10만건 = 약 1,000회
+- 현재 `helpdesk_client.py`의 `fetch_issues`는 **페이지 호출 사이 딜레이가 없다**. 10만건 = 약 1,000회
   요청을 텀 없이 쏟아붓는 구조라 그대로 쓰면 위험하다.
 - 읽기 전용 GET이라 help-desk 데이터를 변경하진 않지만, 한 직원 계정으로 자동 트래픽을 많이
   보내면 **이상탐지·계정 잠금** 위험이 있다.

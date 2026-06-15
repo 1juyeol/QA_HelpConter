@@ -6,7 +6,7 @@
 import json
 from datetime import date, timedelta
 from core.db import get_conn
-from features.insights.compute import compute_wings_tickets, compute_repeat_parents
+from features.insights.insight_aggregations import compute_wings_tickets, compute_repeat_parents
 
 
 def _save_insights_cache(wings, parents):

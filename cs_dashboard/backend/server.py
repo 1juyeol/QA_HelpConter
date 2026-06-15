@@ -11,11 +11,11 @@ from fastapi.responses import FileResponse
 
 from core.db import init_db
 from features.collection.scheduler import start_scheduler, collect_today, prompt_credentials, COLLECTION_ENABLED
-from features.insights.cache import _init_insights_cache
-from features.stats.router import router as stats_router
-from features.issues.router import router as issues_router
-from features.insights.router import router as insights_router
-from features.collection.router import router as collection_router
+from features.insights.insights_cache import _init_insights_cache
+from features.stats.stats_endpoints import router as stats_router
+from features.issues.issues_endpoints import router as issues_router
+from features.insights.insights_endpoints import router as insights_router
+from features.collection.collection_endpoints import router as collection_router
 
 
 app = FastAPI()

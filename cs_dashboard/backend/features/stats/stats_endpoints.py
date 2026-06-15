@@ -12,7 +12,7 @@ import json
 from datetime import date, timedelta
 from fastapi import APIRouter, Query
 from core.db import get_conn
-from core.utils import BUCKET_SQL, BUCKETS, _bucket_where, _period_where, _four_week_range
+from core.date_bucket_utils import BUCKET_SQL, BUCKETS, _bucket_where, _period_where, _four_week_range
 
 router = APIRouter()
 
