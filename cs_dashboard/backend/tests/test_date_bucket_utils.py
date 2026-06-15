@@ -1,4 +1,4 @@
-# core/utils.py 유닛 테스트.
+# core/date_bucket_utils.py 유닛 테스트.
 # _four_week_range: 날짜 경계 및 요일별 월요일 앵커 계산 검증.
 # _period_where: day/week/month 각 모드의 WHERE 조건 및 파라미터 검증.
 import sys
@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.utils import _four_week_range, _period_where
+from core.date_bucket_utils import _four_week_range, _period_where
 
 
 class TestFourWeekRange:

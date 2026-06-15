@@ -1,4 +1,4 @@
-# features/collection/client.py의 select_new_issues 유닛 테스트.
+# features/collection/helpdesk_client.py의 select_new_issues 유닛 테스트.
 # 증분 수집의 핵심 로직: 페이지 결과에서 이미 DB에 있는 ID(known_ids)를 빼고 신규만 남기며,
 # 빈 리스트가 나오면 fetch_issues가 페이지네이션을 멈추는 신호가 된다.
 import sys
@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from features.collection.client import select_new_issues
+from features.collection.helpdesk_client import select_new_issues
 
 
 def _page(*ids):

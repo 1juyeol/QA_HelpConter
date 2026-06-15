@@ -12,11 +12,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import httpx
 import pytz
 
-from features.collection.client import HelpdeskClient
+from features.collection.helpdesk_client import HelpdeskClient
 from core.db import get_conn
 from features.issues.classifier import classify
-from features.insights.compute import compute_wings_tickets, compute_repeat_parents
-from features.insights.cache import _save_insights_cache
+from features.insights.insight_aggregations import compute_wings_tickets, compute_repeat_parents
+from features.insights.insights_cache import _save_insights_cache
 
 KST = pytz.timezone("Asia/Seoul")
 

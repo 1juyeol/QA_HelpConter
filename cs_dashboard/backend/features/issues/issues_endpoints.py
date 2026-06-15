@@ -5,7 +5,7 @@
 from datetime import date
 from fastapi import APIRouter, Query
 from core.db import get_conn
-from core.utils import _bucket_where, _period_where
+from core.date_bucket_utils import _bucket_where, _period_where
 
 router = APIRouter()
 
